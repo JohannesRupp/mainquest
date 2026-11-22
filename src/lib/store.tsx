@@ -1,56 +1,12 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { supabase } from './supabase'
-import type { InsertAt, Quest, RecurringInput, RecurringTask, Settings, Task, TimeEntry } from './types'
+import type { InsertAt, Quest, RecurringTask, Settings, Task, TimeEntry } from './types'
+import { StoreContext, type Store } from './useStore'
 import { createEvent, deleteEvent, getToken, googleConfigured, isGoogleConnected, loadGis } from './google'
 import { addDays, dayKey, isoWeekday, parseDay, startOfWeek } from './time'
 
 const MIN_SYNC_MS = 60_000 // Einträge unter 1 Minute werden nicht in den Kalender geschrieben
 const RECURRING_HORIZON_DAYS = 13 // so weit im Voraus werden wiederkehrende Tasks angelegt
-
-interface Store {
-  loading: boolean
-  error: string | null
-  notice: string | null
-  quests: Quest[]
-  tasks: Task[]
-  entries: TimeEntry[]
-  recurring: RecurringTask[]
-  settings: Settings
-  running: TimeEntry | null
-  clearMessages: () => void
-  addQuest: (q: Pick<Quest, 'title' | 'description' | 'color'> & { weekly_goal_minutes?: number | null }) => Promise<void>
-  updateQuest: (id: string, patch: Partial<Quest>) => Promise<void>
-  deleteQuest: (id: string) => Promise<void>
-  /** Tasks eines Tages in Reihenfolge */
-  tasksOn: (day: string) => Task[]
-  addTask: (title: string, questId: string | null, day: string, at: InsertAt) => Promise<void>
-  updateTask: (id: string, patch: Partial<Task>) => Promise<void>
-  /** Task auf einen Tag verschieben, vor beforeId (null = ans Ende) */
-  moveTask: (id: string, day: string, beforeId: string | null) => Promise<void>
-  deleteTask: (id: string) => Promise<void>
-  completeTask: (id: string) => Promise<void>
-  reopenTask: (id: string) => Promise<void>
-  startTimer: (taskId: string) => Promise<void>
-  stopTimer: () => Promise<void>
-  addManualEntry: (taskId: string, startedAt: Date, minutes: number) => Promise<void>
-  updateEntry: (id: string, patch: { started_at: string; ended_at: string }) => Promise<void>
-  deleteEntry: (id: string) => Promise<void>
-  /** Neue Wiederholung; linkTaskId macht einen bestehenden Task zur ersten Instanz */
-  addRecurring: (r: RecurringInput, linkTaskId?: string) => Promise<void>
-  updateRecurring: (id: string, patch: RecurringInput, keepTaskId?: string) => Promise<void>
-  deleteRecurring: (id: string, keepTaskId?: string) => Promise<void>
-  saveSettings: (s: Partial<Settings>) => Promise<void>
-  syncPending: () => Promise<number>
-  pendingSyncCount: number
-}
-
-const Ctx = createContext<Store | null>(null)
-
-export function useStore(): Store {
-  const s = useContext(Ctx)
-  if (!s) throw new Error('StoreProvider fehlt')
-  return s
-}
 
 const byPos = (a: Task, b: Task) => a.position - b.position || a.created_at.localeCompare(b.created_at)
 
@@ -88,7 +44,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [entries, setEntries] = useState<TimeEntry[]>([])
   const [recurring, setRecurring] = useState<RecurringTask[]>([])
   const [settings, setSettings] = useState<Settings>({ calendar_id: 'primary', auto_sync: true, weekly_goal_minutes: null })
-  const housekeeping = useRef(false)
+  const loadInFlight = useRef<Promise<void> | null>(null)
 
   const clearMessages = useCallback(() => {
     setError(null)
@@ -141,7 +97,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     return current.map((t) => (moved.has(t.id) ? { ...t, scheduled_on: today, position: moved.get(t.id)! } : t))
   }
 
-  const load = useCallback(async () => {
+  const loadOnce = async () => {
     const since = new Date(Date.now() - 400 * 86400_000).toISOString()
     const [q, t, e, s, r] = await Promise.all([
       supabase.from('quests').select('*').order('created_at'),
@@ -155,7 +111,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       setLoading(false)
       return fail(
         /column|relation|schema cache/i.test(err.message)
-          ? `Datenbank nicht aktuell: Bitte supabase/migrations/002_plan_goals_recurring.sql im SQL Editor ausführen. (${err.message})`
+          ? `Datenbank nicht aktuell: Bitte alle Dateien aus supabase/migrations/ der Reihe nach im SQL Editor ausführen. (${err.message})`
           : err,
       )
     }
@@ -170,33 +126,68 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         weekly_goal_minutes: s.data.weekly_goal_minutes ?? null,
       })
 
-    if (!housekeeping.current) {
-      housekeeping.current = true
-      try {
-        taskList = await rollover(taskList)
-        taskList = [...taskList, ...(await materialize(rules, taskList))]
-      } catch (x) {
-        fail(x)
-      } finally {
-        housekeeping.current = false
-      }
+    try {
+      taskList = await rollover(taskList)
+      taskList = [...taskList, ...(await materialize(rules, taskList))]
+    } catch (x) {
+      fail(x)
     }
     setTasks(taskList)
     setRecurring(rules)
     setLoading(false)
+  }
+
+  const load = useCallback(() => {
+    // Läuft schon ein Load (z.B. Start + Tab wieder sichtbar), keinen zweiten parallel starten
+    if (!loadInFlight.current) {
+      loadInFlight.current = loadOnce().finally(() => {
+        loadInFlight.current = null
+      })
+    }
+    return loadInFlight.current
   }, []) // eslint-disable-line
 
   useEffect(() => {
-    load()
+    void load() // eslint-disable-line react/set-state-in-effect -- Daten von Supabase laden ist Sync mit externem System
     if (googleConfigured) loadGis().catch(() => {})
     const reload = () => document.visibilityState === 'visible' && load()
     document.addEventListener('visibilitychange', reload)
-    return () => document.removeEventListener('visibilitychange', reload)
+    // Um Mitternacht neu laden: offene Tasks rollen auf den neuen Tag, Wiederholungen werden nachgelegt
+    let midnight: ReturnType<typeof setTimeout>
+    const scheduleMidnight = () => {
+      const next = addDays(parseDay(dayKey()), 1).getTime() + 5_000
+      midnight = setTimeout(() => {
+        void load()
+        scheduleMidnight()
+      }, next - Date.now())
+    }
+    scheduleMidnight()
+    return () => {
+      document.removeEventListener('visibilitychange', reload)
+      clearTimeout(midnight)
+    }
   }, [load])
 
   const running = useMemo(() => entries.find((e) => !e.ended_at) ?? null, [entries])
 
   const tasksOn = useCallback((day: string) => tasks.filter((t) => t.scheduled_on === day).sort(byPos), [tasks])
+
+  /** Token nur holen, wenn Google verbunden ist (muss im Klick passieren) */
+  const tokenIfConnected = () => {
+    if (!googleConfigured || !isGoogleConnected()) return null
+    const p = getToken()
+    p.catch(() => {})
+    return p
+  }
+
+  const removeGoogleEvent = async (tokenP: Promise<string> | null, eventId: string | null) => {
+    if (!eventId || !tokenP) return
+    try {
+      await deleteEvent(await tokenP, settings.calendar_id, eventId)
+    } catch {
+      /* Termin evtl. schon gelöscht */
+    }
+  }
 
   // ---------- Quests ----------
   const addQuest: Store['addQuest'] = async (q) => {
@@ -250,10 +241,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }
   }
   const deleteTask: Store['deleteTask'] = async (id) => {
+    const eventIds = entries.filter((e) => e.task_id === id && e.google_event_id).map((e) => e.google_event_id!)
+    const tokenP = eventIds.length ? tokenIfConnected() : null
     setTasks((xs) => xs.filter((x) => x.id !== id))
     setEntries((xs) => xs.filter((e) => e.task_id !== id))
     const { error } = await supabase.from('tasks').delete().eq('id', id)
-    if (error) fail(error)
+    if (error) return fail(error)
+    for (const eventId of eventIds) await removeGoogleEvent(tokenP, eventId)
   }
 
   // ---------- Timer ----------
@@ -267,7 +261,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const startTimer: Store['startTimer'] = async (taskId) => {
     if (running) await stopTimer()
     const { data, error } = await supabase.from('time_entries').insert({ task_id: taskId }).select().single()
-    if (error) return fail(error)
+    if (error) {
+      if (error.code !== '23505') return fail(error)
+      await load()
+      return fail('Auf einem anderen Gerät läuft schon ein Timer. Stoppe ihn und starte dann neu.')
+    }
     setEntries((xs) => [...xs, data as TimeEntry])
   }
   const addManualEntry: Store['addManualEntry'] = async (taskId, startedAt, minutes) => {
@@ -279,23 +277,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       .single()
     if (error) return fail(error)
     setEntries((xs) => [...xs, data as TimeEntry].sort((a, b) => a.started_at.localeCompare(b.started_at)))
-  }
-
-  /** Token nur holen, wenn Google verbunden ist (muss im Klick passieren) */
-  const tokenIfConnected = () => {
-    if (!googleConfigured || !isGoogleConnected()) return null
-    const p = getToken()
-    p.catch(() => {})
-    return p
-  }
-
-  const removeGoogleEvent = async (tokenP: Promise<string> | null, eventId: string | null) => {
-    if (!eventId || !tokenP) return
-    try {
-      await deleteEvent(await tokenP, settings.calendar_id, eventId)
-    } catch {
-      /* Termin evtl. schon gelöscht */
-    }
   }
 
   const updateEntry: Store['updateEntry'] = async (id, patch) => {
@@ -397,7 +378,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setRecurring((xs) => xs.filter((x) => x.id !== id))
     // verbleibende Instanzen verlieren die Verknüpfung (on delete set null)
     setTasks((xs) => xs.filter((t) => !future.includes(t.id)).map((t) => (t.recurring_id === id ? { ...t, recurring_id: null } : t)))
-    if (future.length) await supabase.from('tasks').delete().in('id', future)
+    if (future.length) {
+      const { error: e1 } = await supabase.from('tasks').delete().in('id', future)
+      if (e1) return fail(e1)
+    }
     const { error } = await supabase.from('recurring_tasks').delete().eq('id', id)
     if (error) fail(error)
   }
@@ -418,7 +402,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         end: e.ended_at,
         entryId: e.id,
       })
-      await supabase.from('time_entries').update({ google_event_id: eventId }).eq('id', e.id)
+      const { error } = await supabase.from('time_entries').update({ google_event_id: eventId }).eq('id', e.id)
+      if (error) {
+        await deleteEvent(token, settings.calendar_id, eventId).catch(() => {})
+        throw error
+      }
       setEntries((xs) => xs.map((x) => (x.id === e.id ? { ...x, google_event_id: eventId } : x)))
       n++
     }
@@ -460,7 +448,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       const ended_at = new Date().toISOString()
       list = entries.map((e) => (e.id === running.id ? { ...e, ended_at } : e))
       setEntries(list)
-      await supabase.from('time_entries').update({ ended_at }).eq('id', running.id)
+      const { error: stopErr } = await supabase.from('time_entries').update({ ended_at }).eq('id', running.id)
+      if (stopErr) return fail(stopErr)
     }
     const done_at = new Date().toISOString()
     const taskList = tasks.map((t) => (t.id === id ? { ...t, done: true, done_at } : t))
@@ -521,5 +510,5 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     pendingSyncCount,
   }
 
-  return <Ctx.Provider value={value}>{children}</Ctx.Provider>
+  return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>
 }

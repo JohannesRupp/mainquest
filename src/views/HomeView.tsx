@@ -1,7 +1,8 @@
 import { useMemo, useState, type ReactNode } from 'react'
-import { useStore } from '../lib/store'
+import { useStore } from '../lib/useStore'
 import { useNow } from '../lib/useNow'
 import { useLocalState } from '../lib/useLocalState'
+import { openFirst } from '../lib/tasks'
 import { addDays, dayKey, formatDuration, hm, longDate, overlapMs, startOfDay, startOfWeek } from '../lib/time'
 import type { Task, TimeEntry } from '../lib/types'
 import { AddTaskInput } from '../components/AddTaskInput'
@@ -12,8 +13,6 @@ import { EntryEditor } from '../components/EntryEditor'
 import { DropLine, useDropList } from '../components/dnd'
 import { Icon, IconButton } from '../components/ui'
 
-/** Offene Tasks in ihrer Reihenfolge, erledigte darunter */
-export const openFirst = (list: Task[]) => [...list.filter((t) => !t.done), ...list.filter((t) => t.done)]
 
 export function HomeView() {
   const { tasksOn, quests, addTask, moveTask } = useStore()

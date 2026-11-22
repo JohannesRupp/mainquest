@@ -1,4 +1,4 @@
-import { useStore } from '../lib/store'
+import { useStore } from '../lib/useStore'
 import { Icon, IconButton, popoverCls, usePopover } from './ui'
 
 /** Quest auswählen: als Chip (Karte/Eingabe) oder als kleiner Farbpunkt (schmale Spalten) */

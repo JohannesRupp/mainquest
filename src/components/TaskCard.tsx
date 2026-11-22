@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useStore } from '../lib/store'
+import { useStore } from '../lib/useStore'
 import { useNow } from '../lib/useNow'
 import { entryMs, formatDuration } from '../lib/time'
 import type { Task } from '../lib/types'

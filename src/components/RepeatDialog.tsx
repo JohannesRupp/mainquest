@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react'
-import { useStore } from '../lib/store'
+import { useStore } from '../lib/useStore'
 import { dayKey } from '../lib/time'
 import type { RecurringInput, RecurringTask, Task } from '../lib/types'
 import { QuestPicker } from './QuestPicker'

@@ -1,5 +1,5 @@
 import { useMemo, useState, type ReactNode } from 'react'
-import { useStore } from '../lib/store'
+import { useStore } from '../lib/useStore'
 import { useNow } from '../lib/useNow'
 import { addDays, dayKey, fmtHM, overlapMs, startOfDay, startOfWeek } from '../lib/time'
 import { Icon } from '../components/ui'

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useStore } from '../lib/store'
+import { useStore } from '../lib/useStore'
 import { useLocalState } from '../lib/useLocalState'
 import { addDays, dayKey, startOfDay } from '../lib/time'
 import type { RecurringTask } from '../lib/types'
@@ -7,7 +7,8 @@ import { AddTaskInput } from '../components/AddTaskInput'
 import { QuestFilter } from '../components/QuestPicker'
 import { RepeatForm, describeRule } from '../components/RepeatDialog'
 import { Button, Icon, IconButton, Modal } from '../components/ui'
-import { TaskList, openFirst } from './HomeView'
+import { TaskList } from './HomeView'
+import { openFirst } from '../lib/tasks'
 
 const PAST_DAYS = 14
 const FUTURE_DAYS = 41

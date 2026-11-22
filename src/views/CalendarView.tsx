@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { useStore } from '../lib/store'
+import { useStore } from '../lib/useStore'
 import { useNow } from '../lib/useNow'
 import { addDays, dayKey, fmtHM, overlapMs, startOfWeek } from '../lib/time'
 import type { TimeEntry } from '../lib/types'
@@ -72,14 +72,18 @@ const hhmm = (d: Date) => `${pad(d.getHours())}:${pad(d.getMinutes())}`
 /** Arbeit nachträglich eintragen: Task, Tag, von, bis */
 function LogWork({ onClose }: { onClose: () => void }) {
   const { tasks, quests, addManualEntry } = useStore()
-  const nowRounded = new Date(Math.floor(Date.now() / 300_000) * 300_000)
+  // Startwerte: letzte Stunde, auf 5 Minuten gerundet
+  const [init] = useState(() => {
+    const now = Math.floor(Date.now() / 300_000) * 300_000
+    return { from: hhmm(new Date(now - 3_600_000)), to: hhmm(new Date(now)) }
+  })
   const [taskId, setTaskId] = useState('')
-  const [day, setDay] = useState(dayKey())
-  const [from, setFrom] = useState(hhmm(new Date(nowRounded.getTime() - 3_600_000)))
-  const [to, setTo] = useState(hhmm(nowRounded))
+  const [day, setDay] = useState(dayKey)
+  const [from, setFrom] = useState(init.from)
+  const [to, setTo] = useState(init.to)
 
   const options = useMemo(() => {
-    const cutoff = Date.now() - 30 * 86400_000
+    const cutoff = Date.now() - 30 * 86400_000 // eslint-disable-line react/purity -- grobe Grenze, muss nicht reaktiv sein
     const relevant = tasks.filter((t) => !t.done || (t.done_at && new Date(t.done_at).getTime() > cutoff))
     const groups = [...quests.filter((q) => q.status === 'active'), null].map((q) => ({
       label: q?.title ?? 'Ohne Quest',

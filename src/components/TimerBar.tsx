@@ -1,4 +1,4 @@
-import { useStore } from '../lib/store'
+import { useStore } from '../lib/useStore'
 import { useNow } from '../lib/useNow'
 import { entryMs, formatDuration } from '../lib/time'
 import { Icon } from './ui'

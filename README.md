@@ -20,11 +20,13 @@ Vite · React 19 · TypeScript · Tailwind CSS 4 · Supabase (Postgres + Auth) �
 ```
 src/
   App.tsx              Auth-Gate, Navigation
-  lib/store.tsx        Zentraler State + alle Supabase-Aktionen + Kalender-Sync
+  lib/store.tsx        StoreProvider: State, Supabase-Aktionen, Kalender-Sync
+  lib/useStore.ts      Store-Interface + useStore()-Hook
   lib/google.ts        OAuth-Token & Google Calendar API
   lib/time.ts          Zeitberechnungen
-  views/               Tasks, Quests, Dashboard, Einstellungen, Login
-supabase/schema.sql    Datenbankschema inkl. Row Level Security
+  views/               Home, Plan, Kalender, Fokus, Quests, Dashboard, Einstellungen, Login
+supabase/schema.sql    Basisschema inkl. Row Level Security
+supabase/migrations/   Spätere Schemaänderungen, der Reihe nach ausführen
 ```
 
 ## Setup
@@ -32,7 +34,7 @@ supabase/schema.sql    Datenbankschema inkl. Row Level Security
 ### 1. Supabase (Datenbank + Login)
 
 1. Auf [supabase.com](https://supabase.com) ein kostenloses Projekt anlegen (Region Frankfurt).
-2. **SQL Editor** → Inhalt von `supabase/schema.sql` einfügen → *Run*.
+2. **SQL Editor** → Inhalt von `supabase/schema.sql` einfügen → *Run*. Danach jede Datei aus `supabase/migrations/` der Reihe nach (002, 003, …) genauso ausführen.
 3. **Authentication → URL Configuration**:
    - Site URL: `https://mainquest.johannesrupp.com`
    - Redirect URLs: `https://mainquest.johannesrupp.com`, `http://localhost:5173`
@@ -88,6 +90,6 @@ Oder mit der GitHub CLI: `gh repo create mainquest --public --source . --push`
 ## Ideen für später
 
 - XP/Level-System für erledigte Quests
-- Wiederkehrende Tasks und Deadlines
+- Deadlines
 - Pomodoro-Modus
 - Wochenreview als Mail

@@ -80,7 +80,8 @@ function getClient(): TokenClient {
   return client
 }
 
-function cachedToken(): string | null {
+/** Gültiges Token aus dem Speicher, ohne Popup */
+export function cachedToken(): string | null {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (!raw) return null

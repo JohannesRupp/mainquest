@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { useStore } from '../lib/store'
+import { useStore } from '../lib/useStore'
 import { useNow } from '../lib/useNow'
 import { addDays, clockTime, dayKey, fmtHM, overlapMs } from '../lib/time'
 import type { TimeEntry } from '../lib/types'

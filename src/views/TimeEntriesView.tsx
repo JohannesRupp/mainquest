@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { useStore } from '../lib/store'
+import { useStore } from '../lib/useStore'
 import { useNow } from '../lib/useNow'
 import { clockTime, dayKey, entryMs, formatDuration, longDate, parseDay } from '../lib/time'
 import type { TimeEntry } from '../lib/types'

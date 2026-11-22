@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useStore } from '../lib/store'
+import { useStore } from '../lib/useStore'
 import { entryMs, formatDuration, toLocalInput } from '../lib/time'
 import type { TimeEntry } from '../lib/types'
 import { Button, Icon, Modal, inputCls } from './ui'

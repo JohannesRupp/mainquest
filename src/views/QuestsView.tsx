@@ -1,5 +1,5 @@
 import { useMemo, useState, type ReactNode } from 'react'
-import { useStore } from '../lib/store'
+import { useStore } from '../lib/useStore'
 import { addDays, entryMs, fmtHM, overlapMs, startOfDay, startOfWeek } from '../lib/time'
 import type { Quest } from '../lib/types'
 import { Button, Icon, Modal, QUEST_COLORS, inputCls } from '../components/ui'

@@ -1,7 +1,8 @@
 import { useEffect, useState, type FormEvent } from 'react'
-import { useStore } from '../lib/store'
+import { useStore } from '../lib/useStore'
 import { supabase } from '../lib/supabase'
 import {
+  cachedToken,
   disconnectGoogle,
   getToken,
   googleConfigured,
@@ -28,9 +29,15 @@ export function SettingsView({ email, onOpenEntries }: { email: string; onOpenEn
 
   useEffect(() => {
     // Kalenderliste nur laden, wenn ein gültiges Token im Speicher liegt (kein Popup ohne Klick)
-    if (!connected) return
-    const raw = localStorage.getItem('mainquest.gtoken')
-    if (raw && JSON.parse(raw).expires > Date.now()) loadCalendars(JSON.parse(raw).token)
+    const token = connected && cachedToken()
+    if (!token) return
+    let cancelled = false
+    listCalendars(token)
+      .then((list) => !cancelled && setCalendars(list))
+      .catch((e: Error) => !cancelled && setErr(e.message))
+    return () => {
+      cancelled = true
+    }
   }, [connected])
 
   async function connect() {
