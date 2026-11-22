@@ -141,7 +141,7 @@ function NotConfigured() {
       <h1 className="mt-8 text-xl font-semibold">Noch nicht konfiguriert</h1>
       <p className="mt-2 text-muted">
         Lege eine <code>.env</code> nach Vorlage von <code>.env.example</code> an (lokal) bzw. setze die
-        Umgebungsvariablen <code>VITE_SUPABASE_URL</code> und <code>VITE_SUPABASE_ANON_KEY</code> in Vercel. Details
+        Umgebungsvariablen <code>VITE_SUPABASE_URL</code> und <code>VITE_SUPABASE_PUBLISHABLE_KEY</code> in Vercel. Details
         stehen in der README.
       </p>
     </div>

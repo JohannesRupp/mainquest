@@ -36,7 +36,7 @@ supabase/schema.sql    Datenbankschema inkl. Row Level Security
 3. **Authentication → URL Configuration**:
    - Site URL: `https://mainquest.johannesrupp.com`
    - Redirect URLs: `https://mainquest.johannesrupp.com`, `http://localhost:5173`
-4. **Project Settings → API**: `Project URL` und `anon public` Key kopieren.
+4. **Project Settings → API**: `Project URL` und `publishable` Key kopieren.
 
 ### 2. Google Kalender
 
@@ -62,7 +62,7 @@ npm run dev            # http://localhost:5173
 
 1. Repo auf GitHub pushen (siehe unten).
 2. [vercel.com](https://vercel.com) → *Add New Project* → Repo importieren (Framework: Vite wird erkannt).
-3. **Environment Variables**: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_GOOGLE_CLIENT_ID`.
+3. **Environment Variables**: `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`, `VITE_GOOGLE_CLIENT_ID`.
 4. Deploy. Ab jetzt deployt jeder Push auf `main` automatisch.
 
 ### 5. Domain mainquest.johannesrupp.com
