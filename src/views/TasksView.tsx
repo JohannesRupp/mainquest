@@ -82,7 +82,7 @@ export function TasksView({
             {!questFilter && (
               <SectionTitle>
                 <span className="flex items-center gap-2">
-                  <span className="h-2 w-2 rounded-full" style={{ background: q?.color ?? '#8b93a4' }} />
+                  <span className="h-2 w-2 rounded-full" style={{ background: q?.color ?? '#8a8a93' }} />
                   {q?.title ?? 'Ohne Quest'}
                 </span>
               </SectionTitle>

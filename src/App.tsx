@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import { isConfigured, supabase } from './lib/supabase'
 import { StoreProvider, useStore } from './lib/store'
@@ -7,10 +7,11 @@ import { TasksView } from './views/TasksView'
 import { QuestsView } from './views/QuestsView'
 import { DashboardView } from './views/DashboardView'
 import { SettingsView } from './views/SettingsView'
+import { FocusView } from './views/FocusView'
 import { TimerBar } from './components/TimerBar'
 import { Icon } from './components/ui'
 
-export type Tab = 'tasks' | 'quests' | 'dashboard' | 'settings'
+export type Tab = 'tasks' | 'focus' | 'quests' | 'dashboard' | 'settings'
 
 export default function App() {
   const [session, setSession] = useState<Session | null | undefined>(undefined)
@@ -33,9 +34,16 @@ export default function App() {
 }
 
 function Shell({ email }: { email: string }) {
-  const [tab, setTab] = useState<Tab>('tasks')
+  const [tab, setTabState] = useState<Tab>('tasks')
+  const [lastTab, setLastTab] = useState<Tab>('tasks')
   const [questFilter, setQuestFilter] = useState<string | null>(null)
   const { loading, error, notice, clearMessages } = useStore()
+
+  const setTab = (t: Tab) => {
+    if (t !== 'focus') setLastTab(t)
+    setTabState(t)
+  }
+  const closeFocus = useCallback(() => setTabState(lastTab), [lastTab])
 
   useEffect(() => {
     if (!notice) return
@@ -43,39 +51,41 @@ function Shell({ email }: { email: string }) {
     return () => clearTimeout(t)
   }, [notice, clearMessages])
 
-  const nav: { id: Tab; label: string; icon: keyof typeof Icon }[] = [
+  const nav: { id: Tab; label: string; short?: string; icon: keyof typeof Icon }[] = [
     { id: 'tasks', label: 'Tasks', icon: 'list' },
+    { id: 'focus', label: 'Fokus', icon: 'focus' },
     { id: 'quests', label: 'Quests', icon: 'sword' },
-    { id: 'dashboard', label: 'Dashboard', icon: 'chart' },
-    { id: 'settings', label: 'Einstellungen', icon: 'gear' },
+    { id: 'dashboard', label: 'Dashboard', short: 'Stats', icon: 'chart' },
+    { id: 'settings', label: 'Einstellungen', short: 'Settings', icon: 'gear' },
   ]
 
+  if (tab === 'focus' && !loading) return <FocusView onBack={closeFocus} />
+
   return (
-    <div className="mx-auto flex min-h-dvh max-w-5xl flex-col md:flex-row">
-      {/* Seitenleiste Desktop */}
-      <aside className="hidden w-56 shrink-0 flex-col gap-1 border-r border-line p-4 md:flex">
-        <Logo />
-        <div className="mt-6 flex flex-col gap-1">
-          {nav.map((n) => {
-            const I = Icon[n.icon]
-            return (
+    <div className="min-h-dvh">
+      {/* Navigation oben (Desktop) */}
+      <header className="sticky top-0 z-20 hidden border-b border-line bg-bg/85 backdrop-blur md:block">
+        <div className="mx-auto flex max-w-6xl items-center gap-8 px-8 py-3">
+          <Logo />
+          <nav className="flex gap-1">
+            {nav.map((n) => (
               <button
                 key={n.id}
                 onClick={() => setTab(n.id)}
-                className={`flex items-center gap-3 rounded-xl px-3 py-2 text-sm ${tab === n.id ? 'bg-panel-2 text-white' : 'text-muted hover:text-white'}`}
+                className={`rounded-lg px-3.5 py-1.5 text-sm font-medium transition ${tab === n.id ? 'bg-panel-2 text-white' : 'text-muted hover:text-white'}`}
               >
-                <I className="h-4 w-4" /> {n.label}
+                {n.label}
               </button>
-            )
-          })}
+            ))}
+          </nav>
         </div>
-      </aside>
+      </header>
 
-      <main className="flex-1 px-4 pb-28 pt-[max(1rem,env(safe-area-inset-top))] md:px-8 md:pb-10 md:pt-8">
+      <main className="mx-auto max-w-3xl px-4 pb-28 pt-[max(1rem,env(safe-area-inset-top))] md:px-8 md:pb-12 md:pt-10">
         <div className="mb-4 md:hidden">
           <Logo />
         </div>
-        <TimerBar />
+        <TimerBar onOpenFocus={() => setTab('focus')} />
         {error && (
           <div className="mb-4 flex items-start justify-between gap-3 rounded-xl border border-bad/40 bg-bad/10 p-3 text-sm text-bad">
             <span>{error}</span>
@@ -102,7 +112,7 @@ function Shell({ email }: { email: string }) {
       </main>
 
       {/* Tab-Leiste Mobil */}
-      <nav className="fixed inset-x-0 bottom-0 z-20 grid grid-cols-4 border-t border-line bg-bg/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden">
+      <nav className="fixed inset-x-0 bottom-0 z-20 grid grid-cols-5 border-t border-line bg-bg/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden">
         {nav.map((n) => {
           const I = Icon[n.icon]
           return (
@@ -112,7 +122,7 @@ function Shell({ email }: { email: string }) {
               className={`flex flex-col items-center gap-1 py-2.5 text-[11px] ${tab === n.id ? 'text-accent' : 'text-muted'}`}
             >
               <I className="h-5 w-5" />
-              {n.label === 'Einstellungen' ? 'Settings' : n.label}
+              {n.short ?? n.label}
             </button>
           )
         })}

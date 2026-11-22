@@ -60,4 +60,12 @@ export const Icon = {
   calendar: P('M4 6h16v14H4zM4 10h16M8 3v4M16 3v4'),
   undo: P('M9 14L4 9l5-5M4 9h11a5 5 0 010 10h-3'),
   clock: P('M12 7v5l3 2M21 12a9 9 0 11-18 0 9 9 0 0118 0z'),
+  focus: P('M12 3v3M12 18v3M3 12h3M18 12h3M12 16a4 4 0 100-8 4 4 0 000 8z'),
+  back: P('M19 12H5M11 6l-6 6 6 6'),
+  pause: P('M8 5v14M16 5v14'),
+  playFill: (props: { className?: string }) => (
+    <svg viewBox="0 0 24 24" fill="currentColor" className={props.className ?? 'h-5 w-5'}>
+      <path d="M7 4.5v15l12-7.5z" />
+    </svg>
+  ),
 }

@@ -3,7 +3,7 @@ import { useNow } from '../lib/useNow'
 import { entryMs, formatDuration } from '../lib/time'
 import { Icon } from './ui'
 
-export function TimerBar() {
+export function TimerBar({ onOpenFocus }: { onOpenFocus: () => void }) {
   const { running, tasks, quests, stopTimer, completeTask } = useStore()
   const now = useNow(Boolean(running))
   if (!running) return null
@@ -16,11 +16,16 @@ export function TimerBar() {
         <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-accent opacity-60" />
         <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-accent" />
       </span>
-      <div className="min-w-0 flex-1">
-        <div className="truncate text-sm font-medium">{task?.title ?? 'Task'}</div>
-        {quest && <div className="truncate text-xs text-muted">{quest.title}</div>}
-      </div>
-      <div className="tabular text-lg font-semibold text-accent">{formatDuration(entryMs(running, now), true)}</div>
+      <button onClick={onOpenFocus} title="Fokus-Modus öffnen" className="flex min-w-0 flex-1 items-center gap-3 text-left">
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-sm font-medium">{task?.title ?? 'Task'}</div>
+          {quest && <div className="truncate text-xs text-muted">{quest.title}</div>}
+        </div>
+        <div className="tabular text-lg font-semibold text-accent">{formatDuration(entryMs(running, now), true)}</div>
+      </button>
+      <button onClick={onOpenFocus} title="Fokus-Modus" className="rounded-xl bg-panel-2 p-2 hover:bg-line">
+        <Icon.focus className="h-4 w-4" />
+      </button>
       <button onClick={stopTimer} title="Stoppen" className="rounded-xl bg-panel-2 p-2 hover:bg-line">
         <Icon.stop className="h-4 w-4" />
       </button>
