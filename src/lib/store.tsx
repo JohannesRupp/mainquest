@@ -1,9 +1,11 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { supabase } from './supabase'
-import type { Quest, Settings, Task, TimeEntry } from './types'
-import { createEvent, getToken, googleConfigured, isGoogleConnected, loadGis } from './google'
+import type { InsertAt, Quest, RecurringTask, Settings, Task, TimeEntry } from './types'
+import { createEvent, deleteEvent, getToken, googleConfigured, isGoogleConnected, loadGis } from './google'
+import { addDays, dayKey, isoWeekday, parseDay } from './time'
 
 const MIN_SYNC_MS = 60_000 // Einträge unter 1 Minute werden nicht in den Kalender geschrieben
+const RECURRING_HORIZON_DAYS = 13 // so weit im Voraus werden wiederkehrende Tasks angelegt
 
 interface Store {
   loading: boolean
@@ -12,21 +14,30 @@ interface Store {
   quests: Quest[]
   tasks: Task[]
   entries: TimeEntry[]
+  recurring: RecurringTask[]
   settings: Settings
   running: TimeEntry | null
   clearMessages: () => void
   addQuest: (q: Pick<Quest, 'title' | 'description' | 'color'>) => Promise<void>
   updateQuest: (id: string, patch: Partial<Quest>) => Promise<void>
   deleteQuest: (id: string) => Promise<void>
-  addTask: (title: string, questId: string | null) => Promise<void>
+  /** Tasks eines Tages in Reihenfolge */
+  tasksOn: (day: string) => Task[]
+  addTask: (title: string, questId: string | null, day: string, at: InsertAt) => Promise<void>
   updateTask: (id: string, patch: Partial<Task>) => Promise<void>
+  /** Task auf einen Tag verschieben, vor beforeId (null = ans Ende) */
+  moveTask: (id: string, day: string, beforeId: string | null) => Promise<void>
   deleteTask: (id: string) => Promise<void>
   completeTask: (id: string) => Promise<void>
   reopenTask: (id: string) => Promise<void>
   startTimer: (taskId: string) => Promise<void>
   stopTimer: () => Promise<void>
   addManualEntry: (taskId: string, startedAt: Date, minutes: number) => Promise<void>
+  updateEntry: (id: string, patch: { started_at: string; ended_at: string }) => Promise<void>
   deleteEntry: (id: string) => Promise<void>
+  addRecurring: (r: Pick<RecurringTask, 'title' | 'quest_id' | 'weekdays'>) => Promise<void>
+  updateRecurring: (id: string, patch: Pick<RecurringTask, 'title' | 'quest_id' | 'weekdays'>) => Promise<void>
+  deleteRecurring: (id: string) => Promise<void>
   saveSettings: (s: Partial<Settings>) => Promise<void>
   syncPending: () => Promise<number>
   pendingSyncCount: number
@@ -40,6 +51,21 @@ export function useStore(): Store {
   return s
 }
 
+const byPos = (a: Task, b: Task) => a.position - b.position || a.created_at.localeCompare(b.created_at)
+
+/** Position für Einfügen oben/unten in einer sortierten Liste */
+function edgePosition(list: Task[], at: InsertAt): number {
+  if (!list.length) return 0
+  return at === 'top' ? list[0].position - 1 : list[list.length - 1].position + 1
+}
+
+/** Tage von from (exklusiv) bis to (inklusiv), die auf die Wochentage passen */
+function occurrences(weekdays: number[], from: Date, to: Date): string[] {
+  const out: string[] = []
+  for (let d = addDays(from, 1); d <= to; d = addDays(d, 1)) if (weekdays.includes(isoWeekday(d))) out.push(dayKey(d))
+  return out
+}
+
 export function StoreProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -47,7 +73,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [quests, setQuests] = useState<Quest[]>([])
   const [tasks, setTasks] = useState<Task[]>([])
   const [entries, setEntries] = useState<TimeEntry[]>([])
-  const [settings, setSettings] = useState<Settings>({ calendar_id: 'primary', auto_sync: true })
+  const [recurring, setRecurring] = useState<RecurringTask[]>([])
+  const [settings, setSettings] = useState<Settings>({ calendar_id: 'primary', auto_sync: true, weekly_goal_minutes: null })
+  const housekeeping = useRef(false)
 
   const clearMessages = useCallback(() => {
     setError(null)
@@ -56,22 +84,94 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const fail = (e: unknown) => setError(e instanceof Error ? e.message : String((e as { message?: string })?.message ?? e))
 
+  /** Wiederkehrende Tasks bis zum Horizont anlegen */
+  const materialize = async (rules: RecurringTask[], current: Task[]): Promise<Task[]> => {
+    const today = parseDay(dayKey())
+    const horizon = addDays(today, RECURRING_HORIZON_DAYS)
+    const created: Task[] = []
+    for (const r of rules) {
+      const from = r.generated_until ? parseDay(r.generated_until) : addDays(today, -1)
+      const start = from < addDays(today, -1) ? addDays(today, -1) : from
+      const days = occurrences(r.weekdays, start, horizon)
+      if (days.length) {
+        const rows = days.map((day) => {
+          const list = [...current, ...created].filter((t) => t.scheduled_on === day).sort(byPos)
+          return { title: r.title, quest_id: r.quest_id, recurring_id: r.id, scheduled_on: day, position: edgePosition(list, 'bottom') }
+        })
+        const { data, error } = await supabase
+          .from('tasks')
+          .upsert(rows, { onConflict: 'recurring_id,scheduled_on', ignoreDuplicates: true })
+          .select()
+        if (error) throw error
+        created.push(...((data ?? []) as Task[]))
+      }
+      if (r.generated_until !== dayKey(horizon)) {
+        await supabase.from('recurring_tasks').update({ generated_until: dayKey(horizon) }).eq('id', r.id)
+        r.generated_until = dayKey(horizon)
+      }
+    }
+    return created
+  }
+
+  /** Unerledigte Tasks aus der Vergangenheit ans Ende von heute schieben */
+  const rollover = async (current: Task[]): Promise<Task[]> => {
+    const today = dayKey()
+    const late = current.filter((t) => !t.done && !t.recurring_id && t.scheduled_on < today)
+    if (!late.length) return current
+    late.sort((a, b) => a.scheduled_on.localeCompare(b.scheduled_on) || byPos(a, b))
+    let pos = edgePosition(current.filter((t) => t.scheduled_on === today).sort(byPos), 'bottom')
+    const moved = new Map<string, number>()
+    for (const t of late) moved.set(t.id, pos++)
+    await Promise.all(
+      late.map((t) => supabase.from('tasks').update({ scheduled_on: today, position: moved.get(t.id) }).eq('id', t.id)),
+    )
+    return current.map((t) => (moved.has(t.id) ? { ...t, scheduled_on: today, position: moved.get(t.id)! } : t))
+  }
+
   const load = useCallback(async () => {
     const since = new Date(Date.now() - 400 * 86400_000).toISOString()
-    const [q, t, e, s] = await Promise.all([
+    const [q, t, e, s, r] = await Promise.all([
       supabase.from('quests').select('*').order('created_at'),
-      supabase.from('tasks').select('*').order('created_at'),
+      supabase.from('tasks').select('*').order('position'),
       supabase.from('time_entries').select('*').gte('started_at', since).order('started_at'),
       supabase.from('user_settings').select('*').maybeSingle(),
+      supabase.from('recurring_tasks').select('*').order('created_at'),
     ])
-    const err = q.error ?? t.error ?? e.error ?? s.error
-    if (err) return fail(err)
+    const err = q.error ?? t.error ?? e.error ?? s.error ?? r.error
+    if (err) {
+      setLoading(false)
+      return fail(
+        /column|relation|schema cache/i.test(err.message)
+          ? `Datenbank nicht aktuell: Bitte supabase/migrations/002_plan_goals_recurring.sql im SQL Editor ausführen. (${err.message})`
+          : err,
+      )
+    }
+    let taskList = t.data as Task[]
+    const rules = r.data as RecurringTask[]
     setQuests(q.data as Quest[])
-    setTasks(t.data as Task[])
     setEntries(e.data as TimeEntry[])
-    if (s.data) setSettings({ calendar_id: s.data.calendar_id, auto_sync: s.data.auto_sync })
+    if (s.data)
+      setSettings({
+        calendar_id: s.data.calendar_id,
+        auto_sync: s.data.auto_sync,
+        weekly_goal_minutes: s.data.weekly_goal_minutes ?? null,
+      })
+
+    if (!housekeeping.current) {
+      housekeeping.current = true
+      try {
+        taskList = await rollover(taskList)
+        taskList = [...taskList, ...(await materialize(rules, taskList))]
+      } catch (x) {
+        fail(x)
+      } finally {
+        housekeeping.current = false
+      }
+    }
+    setTasks(taskList)
+    setRecurring(rules)
     setLoading(false)
-  }, [])
+  }, []) // eslint-disable-line
 
   useEffect(() => {
     load()
@@ -82,6 +182,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, [load])
 
   const running = useMemo(() => entries.find((e) => !e.ended_at) ?? null, [entries])
+
+  const tasksOn = useCallback((day: string) => tasks.filter((t) => t.scheduled_on === day).sort(byPos), [tasks])
 
   // ---------- Quests ----------
   const addQuest: Store['addQuest'] = async (q) => {
@@ -102,8 +204,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }
 
   // ---------- Tasks ----------
-  const addTask: Store['addTask'] = async (title, questId) => {
-    const { data, error } = await supabase.from('tasks').insert({ title, quest_id: questId }).select().single()
+  const addTask: Store['addTask'] = async (title, questId, day, at) => {
+    const position = edgePosition(tasksOn(day), at)
+    const { data, error } = await supabase
+      .from('tasks')
+      .insert({ title, quest_id: questId, scheduled_on: day, position })
+      .select()
+      .single()
     if (error) return fail(error)
     setTasks((xs) => [...xs, data as Task])
   }
@@ -111,6 +218,22 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setTasks((xs) => xs.map((x) => (x.id === id ? { ...x, ...patch } : x)))
     const { error } = await supabase.from('tasks').update(patch).eq('id', id)
     if (error) fail(error)
+  }
+  const moveTask: Store['moveTask'] = async (id, day, beforeId) => {
+    if (id === beforeId) return
+    const list = tasksOn(day).filter((t) => t.id !== id)
+    const idx = beforeId ? list.findIndex((t) => t.id === beforeId) : -1
+    let position: number
+    if (idx === -1) position = edgePosition(list, 'bottom')
+    else if (idx === 0) position = list[0].position - 1
+    else position = (list[idx - 1].position + list[idx].position) / 2
+    const prev = tasks.find((t) => t.id === id)
+    setTasks((xs) => xs.map((x) => (x.id === id ? { ...x, scheduled_on: day, position } : x)))
+    const { error } = await supabase.from('tasks').update({ scheduled_on: day, position }).eq('id', id)
+    if (error) {
+      if (prev) setTasks((xs) => xs.map((x) => (x.id === id ? prev : x)))
+      fail(error.code === '23505' ? 'Diesen wiederkehrenden Task gibt es an dem Tag schon.' : error)
+    }
   }
   const deleteTask: Store['deleteTask'] = async (id) => {
     setTasks((xs) => xs.filter((x) => x.id !== id))
@@ -143,9 +266,106 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     if (error) return fail(error)
     setEntries((xs) => [...xs, data as TimeEntry].sort((a, b) => a.started_at.localeCompare(b.started_at)))
   }
+
+  /** Token nur holen, wenn Google verbunden ist (muss im Klick passieren) */
+  const tokenIfConnected = () => {
+    if (!googleConfigured || !isGoogleConnected()) return null
+    const p = getToken()
+    p.catch(() => {})
+    return p
+  }
+
+  const removeGoogleEvent = async (tokenP: Promise<string> | null, eventId: string | null) => {
+    if (!eventId || !tokenP) return
+    try {
+      await deleteEvent(await tokenP, settings.calendar_id, eventId)
+    } catch {
+      /* Termin evtl. schon gelöscht */
+    }
+  }
+
+  const updateEntry: Store['updateEntry'] = async (id, patch) => {
+    const old = entries.find((e) => e.id === id)
+    if (!old) return
+    if (new Date(patch.ended_at) <= new Date(patch.started_at)) return fail('Das Ende muss nach dem Start liegen.')
+    const tokenP = old.google_event_id ? tokenIfConnected() : null
+    const next = { ...old, ...patch, google_event_id: null }
+    setEntries((xs) => xs.map((e) => (e.id === id ? next : e)).sort((a, b) => a.started_at.localeCompare(b.started_at)))
+    const { error } = await supabase.from('time_entries').update({ ...patch, google_event_id: null }).eq('id', id)
+    if (error) return fail(error)
+    if (old.google_event_id && tokenP) {
+      await removeGoogleEvent(tokenP, old.google_event_id)
+      const task = tasks.find((t) => t.id === old.task_id)
+      if (task?.done) {
+        try {
+          await syncEntries(await tokenP, pendingFor(new Set([task.id]), [next]), tasks)
+          setNotice('Zeiteintrag und Kalendertermin aktualisiert')
+        } catch (e) {
+          fail(e)
+        }
+      }
+    }
+  }
   const deleteEntry: Store['deleteEntry'] = async (id) => {
+    const old = entries.find((e) => e.id === id)
+    const tokenP = old?.google_event_id ? tokenIfConnected() : null
     setEntries((xs) => xs.filter((e) => e.id !== id))
     const { error } = await supabase.from('time_entries').delete().eq('id', id)
+    if (error) return fail(error)
+    await removeGoogleEvent(tokenP, old?.google_event_id ?? null)
+  }
+
+  // ---------- Wiederkehrende Tasks ----------
+  const regenerate = async (rule: RecurringTask) => {
+    // Künftige, offene Instanzen ab heute neu aufbauen
+    const today = dayKey()
+    // Instanzen mit getrackter Zeit bleiben erhalten, sonst gingen die Zeiteinträge verloren
+    const stale = tasks.filter(
+      (t) => t.recurring_id === rule.id && !t.done && t.scheduled_on >= today && !entries.some((e) => e.task_id === t.id),
+    )
+    if (stale.length) {
+      const ids = stale.map((t) => t.id)
+      const { error } = await supabase.from('tasks').delete().in('id', ids)
+      if (error) throw error
+    }
+    const remaining = tasks.filter((t) => !stale.includes(t))
+    const fresh = { ...rule, generated_until: dayKey(addDays(parseDay(today), -1)) }
+    const created = await materialize([fresh], remaining)
+    setTasks([...remaining, ...created])
+    return fresh
+  }
+
+  const addRecurring: Store['addRecurring'] = async (r) => {
+    const { data, error } = await supabase.from('recurring_tasks').insert(r).select().single()
+    if (error) return fail(error)
+    try {
+      const rule = await regenerate(data as RecurringTask)
+      setRecurring((xs) => [...xs, rule])
+    } catch (e) {
+      fail(e)
+    }
+  }
+  const updateRecurring: Store['updateRecurring'] = async (id, patch) => {
+    const old = recurring.find((r) => r.id === id)
+    if (!old) return
+    const { error } = await supabase.from('recurring_tasks').update(patch).eq('id', id)
+    if (error) return fail(error)
+    try {
+      const rule = await regenerate({ ...old, ...patch })
+      setRecurring((xs) => xs.map((x) => (x.id === id ? rule : x)))
+    } catch (e) {
+      fail(e)
+    }
+  }
+  const deleteRecurring: Store['deleteRecurring'] = async (id) => {
+    const today = dayKey()
+    const future = tasks
+      .filter((t) => t.recurring_id === id && !t.done && t.scheduled_on >= today && !entries.some((e) => e.task_id === t.id))
+      .map((t) => t.id)
+    setRecurring((xs) => xs.filter((x) => x.id !== id))
+    setTasks((xs) => xs.filter((t) => !future.includes(t.id)))
+    if (future.length) await supabase.from('tasks').delete().in('id', future)
+    const { error } = await supabase.from('recurring_tasks').delete().eq('id', id)
     if (error) fail(error)
   }
 
@@ -241,21 +461,28 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     quests,
     tasks,
     entries,
+    recurring,
     settings,
     running,
     clearMessages,
     addQuest,
     updateQuest,
     deleteQuest,
+    tasksOn,
     addTask,
     updateTask,
+    moveTask,
     deleteTask,
     completeTask,
     reopenTask,
     startTimer,
     stopTimer,
     addManualEntry,
+    updateEntry,
     deleteEntry,
+    addRecurring,
+    updateRecurring,
+    deleteRecurring,
     saveSettings,
     syncPending,
     pendingSyncCount,

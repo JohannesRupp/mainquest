@@ -6,6 +6,7 @@ export interface Quest {
   description: string | null
   color: string
   status: QuestStatus
+  weekly_goal_minutes: number | null
   created_at: string
 }
 
@@ -16,6 +17,10 @@ export interface Task {
   notes: string | null
   done: boolean
   done_at: string | null
+  /** Geplanter Tag, YYYY-MM-DD (lokal) */
+  scheduled_on: string
+  position: number
+  recurring_id: string | null
   created_at: string
 }
 
@@ -27,7 +32,20 @@ export interface TimeEntry {
   google_event_id: string | null
 }
 
+export interface RecurringTask {
+  id: string
+  quest_id: string | null
+  title: string
+  /** 1 = Montag … 7 = Sonntag */
+  weekdays: number[]
+  generated_until: string | null
+  created_at: string
+}
+
 export interface Settings {
   calendar_id: string
   auto_sync: boolean
+  weekly_goal_minutes: number | null
 }
+
+export type InsertAt = 'top' | 'bottom'

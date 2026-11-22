@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { useStore } from '../lib/store'
-import { entryMs, formatDuration } from '../lib/time'
+import { addDays, entryMs, formatDuration, overlapMs, startOfWeek } from '../lib/time'
 import type { Quest } from '../lib/types'
 import { Button, Card, Icon, QUEST_COLORS, SectionTitle, inputCls } from '../components/ui'
 
@@ -88,6 +88,9 @@ function QuestCard({ quest, onOpen }: { quest: Quest; onOpen: () => void }) {
   const ids = new Set(own.map((t) => t.id))
   const time = entries.filter((e) => ids.has(e.task_id)).reduce((s, e) => s + entryMs(e), 0)
   const pct = own.length ? Math.round((done / own.length) * 100) : 0
+  const week = startOfWeek()
+  const weekMs = entries.filter((e) => ids.has(e.task_id)).reduce((s, e) => s + overlapMs(e, week, addDays(week, 7)), 0)
+  const goalMs = (quest.weekly_goal_minutes ?? 0) * 60_000
 
   return (
     <Card className={quest.status !== 'active' ? 'opacity-60' : ''}>
@@ -103,9 +106,41 @@ function QuestCard({ quest, onOpen }: { quest: Quest; onOpen: () => void }) {
         </div>
         <div className="mt-2 flex justify-between text-xs text-muted">
           <span>{done}/{own.length} Tasks</span>
-          <span className="tabular">{formatDuration(time)}</span>
+          <span className="tabular">{formatDuration(time)} gesamt</span>
         </div>
       </button>
+      <div className="mt-4 rounded-xl bg-panel-2/50 p-3">
+        <div className="flex items-center justify-between gap-3 text-xs">
+          <span className="text-muted">Diese Woche</span>
+          <label className="flex items-center gap-1.5 text-muted">
+            Ziel
+            <input
+              type="number"
+              min={0}
+              step={0.5}
+              defaultValue={quest.weekly_goal_minutes ? quest.weekly_goal_minutes / 60 : ''}
+              placeholder="–"
+              onBlur={(e) => {
+                const h = Number(e.target.value)
+                const minutes = h > 0 ? Math.round(h * 60) : null
+                if (minutes !== quest.weekly_goal_minutes) updateQuest(quest.id, { weekly_goal_minutes: minutes })
+              }}
+              className="w-14 rounded-md border border-line bg-bg px-1.5 py-0.5 text-right text-white outline-none focus:border-accent"
+              style={{ fontSize: 13 }}
+            />
+            h / Woche
+          </label>
+        </div>
+        <div className="tabular mt-2 text-sm">
+          {formatDuration(weekMs)}
+          {goalMs > 0 && <span className="text-muted"> von {formatDuration(goalMs)}</span>}
+        </div>
+        {goalMs > 0 && (
+          <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-bg">
+            <div className="h-full rounded-full" style={{ width: `${Math.min(100, (weekMs / goalMs) * 100)}%`, background: quest.color }} />
+          </div>
+        )}
+      </div>
       <div className="mt-3 flex gap-1 border-t border-line pt-3">
         {quest.status === 'active' ? (
           <>

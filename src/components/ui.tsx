@@ -1,4 +1,4 @@
-import type { ButtonHTMLAttributes, ReactNode } from 'react'
+import { useEffect, useRef, useState, type ButtonHTMLAttributes, type ReactNode } from 'react'
 
 type Variant = 'primary' | 'ghost' | 'danger' | 'subtle'
 
@@ -60,6 +60,20 @@ export const Icon = {
   calendar: P('M4 6h16v14H4zM4 10h16M8 3v4M16 3v4'),
   undo: P('M9 14L4 9l5-5M4 9h11a5 5 0 010 10h-3'),
   clock: P('M12 7v5l3 2M21 12a9 9 0 11-18 0 9 9 0 0118 0z'),
+  filter: P('M3 5h18l-7 8.5V19l-4 2v-7.5z'),
+  eye: P('M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12zM12 15a3 3 0 100-6 3 3 0 000 6z'),
+  eyeOff: P('M3 3l18 18M10.6 5.1A10 10 0 0112 5c6.5 0 10 7 10 7a17 17 0 01-3.2 4.2M6.6 6.6C3.9 8.4 2 12 2 12s3.5 7 10 7a9.7 9.7 0 005.4-1.6M9.9 9.9a3 3 0 004.2 4.2'),
+  repeat: P('M17 2l4 4-4 4M3 11V9a3 3 0 013-3h15M7 22l-4-4 4-4M21 13v2a3 3 0 01-3 3H3'),
+  toTop: P('M5 4h14M12 20V9M7 14l5-5 5 5'),
+  toBottom: P('M5 20h14M12 4v11M7 10l5 5 5-5'),
+  chat: P('M4 5h16v11H9l-5 4zM8 9h8M8 12.5h5'),
+  x: P('M6 6l12 12M18 6L6 18'),
+  pencil: P('M4 20h4L19 9l-4-4L4 16zM14 6l4 4'),
+  left: P('M15 6l-6 6 6 6'),
+  logout: P('M15 4h4v16h-4M10 8l-4 4 4 4M6 12h11'),
+  home: P('M3 11l9-7 9 7M5 10v10h14V10'),
+  plan: P('M4 5h16v15H4zM9 5v15M14 5v15'),
+  review: P('M5 20V10M12 20V4M19 20v-7'),
   focus: P('M12 3v3M12 18v3M3 12h3M18 12h3M12 16a4 4 0 100-8 4 4 0 000 8z'),
   back: P('M19 12H5M11 6l-6 6 6 6'),
   pause: P('M8 5v14M16 5v14'),
@@ -68,4 +82,54 @@ export const Icon = {
       <path d="M7 4.5v15l12-7.5z" />
     </svg>
   ),
+}
+
+/** Klein-Popover: schließt bei Klick außerhalb und Esc */
+export function usePopover() {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!open) return
+    const onDown = (e: MouseEvent) => ref.current && !ref.current.contains(e.target as Node) && setOpen(false)
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setOpen(false)
+    document.addEventListener('mousedown', onDown)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onDown)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [open])
+  return { open, setOpen, ref }
+}
+
+export const popoverCls = 'absolute z-40 mt-1.5 min-w-56 rounded-xl border border-line bg-panel p-1.5 shadow-2xl shadow-black/60'
+
+export function IconButton({ active, className = '', ...props }: ButtonHTMLAttributes<HTMLButtonElement> & { active?: boolean }) {
+  return (
+    <button
+      {...props}
+      className={`grid h-11 w-11 place-items-center rounded-xl border transition ${active ? 'border-accent/50 bg-accent/10 text-accent' : 'border-line bg-panel text-muted hover:text-white'} ${className}`}
+    />
+  )
+}
+
+export function Modal({ title, onClose, children, wide }: { title: string; onClose: () => void; children: ReactNode; wide?: boolean }) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center bg-black/70 p-4 backdrop-blur-sm" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+      <div className={`max-h-[90dvh] w-full overflow-y-auto rounded-2xl border border-line bg-panel p-5 shadow-2xl ${wide ? 'max-w-2xl' : 'max-w-md'}`}>
+        <div className="mb-4 flex items-center justify-between">
+          <h2 className="text-lg font-semibold">{title}</h2>
+          <button onClick={onClose} className="rounded-lg p-1.5 text-muted hover:bg-panel-2 hover:text-white">
+            <Icon.x className="h-4 w-4" />
+          </button>
+        </div>
+        {children}
+      </div>
+    </div>
+  )
 }

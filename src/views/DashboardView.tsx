@@ -1,13 +1,13 @@
 import { useMemo, useState } from 'react'
 import { useStore } from '../lib/store'
 import { useNow } from '../lib/useNow'
-import { addDays, formatDuration, overlapMs, startOfDay, weekdayShort } from '../lib/time'
+import { addDays, formatDuration, overlapMs, startOfDay, startOfWeek, weekdayShort } from '../lib/time'
 import { Card, SectionTitle } from '../components/ui'
 
 type Range = 7 | 30
 
 export function DashboardView() {
-  const { entries, tasks, quests, running } = useStore()
+  const { entries, tasks, quests, running, settings } = useStore()
   const now = useNow(Boolean(running), 30_000)
   const [range, setRange] = useState<Range>(7)
 
@@ -71,7 +71,7 @@ export function DashboardView() {
   return (
     <div>
       <div className="mb-5 flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Dashboard</h1>
+        <h1 className="text-3xl font-medium tracking-tight">Review</h1>
         <div className="flex rounded-xl bg-panel-2 p-1 text-sm">
           {([7, 30] as Range[]).map((r) => (
             <button
@@ -91,6 +91,19 @@ export function DashboardView() {
         <Stat label={`Erledigt (${range} T.)`} value={String(stats.doneInRange)} />
         <Stat label="Streak" value={`${stats.streak} ${stats.streak === 1 ? 'Tag' : 'Tage'}`} accent />
       </div>
+
+      <WeeklyGoals
+        weekMs={stats.weekMs}
+        goalMs={(settings.weekly_goal_minutes ?? 0) * 60_000}
+        perQuest={quests
+          .filter((q) => q.status === 'active' && q.weekly_goal_minutes)
+          .map((q) => {
+            const ids = new Set(tasks.filter((t) => t.quest_id === q.id).map((t) => t.id))
+            const ws = startOfWeek()
+            const ms = entries.filter((e) => ids.has(e.task_id)).reduce((s, e) => s + overlapMs(e, ws, addDays(ws, 7), now), 0)
+            return { id: q.id, title: q.title, color: q.color, ms, goalMs: q.weekly_goal_minutes! * 60_000 }
+          })}
+      />
 
       <SectionTitle right={<span className="tabular text-xs text-muted">Σ {formatDuration(stats.rangeMs)}</span>}>
         Fokuszeit pro Tag
@@ -163,5 +176,42 @@ function Stat({ label, value, accent }: { label: string; value: string; accent?:
       <div className="text-xs text-muted">{label}</div>
       <div className={`tabular mt-1 text-xl font-bold ${accent ? 'text-accent' : ''}`}>{value}</div>
     </Card>
+  )
+}
+
+function WeeklyGoals({
+  weekMs,
+  goalMs,
+  perQuest,
+}: {
+  weekMs: number
+  goalMs: number
+  perQuest: { id: string; title: string; color: string; ms: number; goalMs: number }[]
+}) {
+  if (!goalMs && perQuest.length === 0) return null
+  const rows = [...(goalMs ? [{ id: 'all', title: 'Gesamt', color: '#f5b942', ms: weekMs, goalMs }] : []), ...perQuest]
+  return (
+    <>
+      <SectionTitle>Wochenziele</SectionTitle>
+      <Card className="flex flex-col gap-4">
+        {rows.map((r) => (
+          <div key={r.id}>
+            <div className="mb-1.5 flex justify-between gap-3 text-sm">
+              <span className="flex min-w-0 items-center gap-2">
+                <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: r.color }} />
+                <span className={`truncate ${r.id === 'all' ? 'font-semibold' : ''}`}>{r.title}</span>
+              </span>
+              <span className="tabular shrink-0 text-muted">
+                {formatDuration(r.ms)} / {formatDuration(r.goalMs)}
+                {r.ms >= r.goalMs && <span className="ml-1.5 text-good">✓</span>}
+              </span>
+            </div>
+            <div className="h-2 overflow-hidden rounded-full bg-panel-2">
+              <div className="h-full rounded-full" style={{ width: `${Math.min(100, (r.ms / r.goalMs) * 100)}%`, background: r.color }} />
+            </div>
+          </div>
+        ))}
+      </Card>
+    </>
   )
 }

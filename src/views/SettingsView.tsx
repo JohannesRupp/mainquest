@@ -11,7 +11,7 @@ import {
 } from '../lib/google'
 import { Button, Card, Icon, SectionTitle, inputCls } from '../components/ui'
 
-export function SettingsView({ email }: { email: string }) {
+export function SettingsView({ email, onOpenEntries }: { email: string; onOpenEntries: () => void }) {
   const { settings, saveSettings, syncPending, pendingSyncCount } = useStore()
   const [connected, setConnected] = useState(isGoogleConnected())
   const [calendars, setCalendars] = useState<CalendarInfo[]>([])
@@ -46,7 +46,40 @@ export function SettingsView({ email }: { email: string }) {
 
   return (
     <div className="max-w-xl">
-      <h1 className="mb-5 text-2xl font-bold">Einstellungen</h1>
+      <h1 className="mb-5 text-3xl font-medium tracking-tight">Einstellungen</h1>
+
+      <SectionTitle>Ziele</SectionTitle>
+      <Card className="flex items-center justify-between gap-4">
+        <div>
+          <div className="text-sm">Wochenziel für Quest-Arbeit</div>
+          <div className="text-xs text-muted">Wird auf Home und im Review als Fortschritt angezeigt.</div>
+        </div>
+        <label className="flex shrink-0 items-center gap-2 text-sm text-muted">
+          <input
+            type="number"
+            min={0}
+            step={1}
+            defaultValue={settings.weekly_goal_minutes ? settings.weekly_goal_minutes / 60 : ''}
+            placeholder="40"
+            onBlur={(e) => {
+              const h = Number(e.target.value)
+              const minutes = h > 0 ? Math.round(h * 60) : null
+              if (minutes !== settings.weekly_goal_minutes) saveSettings({ weekly_goal_minutes: minutes })
+            }}
+            className={`${inputCls} w-20 text-right`}
+          />
+          Std.
+        </label>
+      </Card>
+
+      <SectionTitle>Zeiteinträge</SectionTitle>
+      <Card className="flex items-center justify-between gap-4">
+        <div className="text-sm text-muted">Alle getrackten Zeitblöcke ansehen, anpassen oder löschen.</div>
+        <Button onClick={onOpenEntries} className="shrink-0">
+          <Icon.clock className="h-4 w-4" /> Öffnen
+        </Button>
+      </Card>
+
 
       <SectionTitle>Google Kalender</SectionTitle>
       <Card className="flex flex-col gap-4">

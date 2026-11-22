@@ -1,37 +1,15 @@
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
 import { useStore } from '../lib/store'
 import { useNow } from '../lib/useNow'
-import { entryMs, formatDuration } from '../lib/time'
+import { dayKey, entryMs, formatDuration } from '../lib/time'
 import type { Task } from '../lib/types'
 import { Icon } from '../components/ui'
 
-const STORAGE_KEY = 'mainquest.focusTask'
-
-function readStored(): string | null {
-  try {
-    return localStorage.getItem(STORAGE_KEY)
-  } catch {
-    return null
-  }
-}
-
-/** Vollbild-Fokusmodus: ein Task, großer Timer, Pause/Fortsetzen und Abschließen */
-export function FocusView({ onBack }: { onBack: () => void }) {
-  const { tasks, running } = useStore()
-  const [chosen, setChosen] = useState<string | null>(readStored)
-
-  const focusId = running?.task_id ?? chosen
-  const task = tasks.find((t) => t.id === focusId && !t.done) ?? null
-
-  function choose(id: string | null) {
-    setChosen(id)
-    try {
-      if (id) localStorage.setItem(STORAGE_KEY, id)
-      else localStorage.removeItem(STORAGE_KEY)
-    } catch {
-      /* egal */
-    }
-  }
+/** Vollbild-Fokusmodus: laufender Task, sonst der oberste offene Task von heute */
+export function FocusView({ onBack, onPlan }: { onBack: () => void; onPlan: () => void }) {
+  const { tasks, tasksOn, running } = useStore()
+  const runningTask = tasks.find((t) => t.id === running?.task_id && !t.done)
+  const task = runningTask ?? tasksOn(dayKey()).find((t) => !t.done) ?? null
 
   // Esc führt zurück
   useEffect(() => {
@@ -42,7 +20,7 @@ export function FocusView({ onBack }: { onBack: () => void }) {
 
   return (
     <div className="fixed inset-0 z-30 flex flex-col bg-bg pb-[env(safe-area-inset-bottom)] pt-[env(safe-area-inset-top)]">
-      {task ? <FocusSession task={task} onBack={onBack} /> : <TaskPicker onBack={onBack} onPick={choose} />}
+      {task ? <FocusSession key={task.id} task={task} onBack={onBack} /> : <AllDone onBack={onBack} onPlan={onPlan} />}
     </div>
   )
 }
@@ -150,43 +128,22 @@ function FocusSession({ task, onBack }: { task: Task; onBack: () => void }) {
   )
 }
 
-function TaskPicker({ onBack, onPick }: { onBack: () => void; onPick: (id: string) => void }) {
-  const { tasks, quests, entries } = useStore()
-  const open = tasks.filter((t) => !t.done)
-  const totalOf = (id: string) => entries.filter((e) => e.task_id === id).reduce((s, e) => s + entryMs(e), 0)
-
+function AllDone({ onBack, onPlan }: { onBack: () => void; onPlan: () => void }) {
   return (
     <>
       <FocusHeader onBack={onBack} label="Fokus" />
-      <main className="mx-auto flex w-full max-w-xl flex-1 flex-col overflow-y-auto px-5 pb-10 pt-4 md:pt-12">
-        <h1 className="text-center text-2xl font-medium md:text-3xl">Woran arbeitest du?</h1>
-        <p className="mt-2 text-center text-sm text-muted">Wähl einen Task für deine Fokus-Session.</p>
-
-        {open.length === 0 ? (
-          <p className="mt-10 text-center text-sm text-muted">Keine offenen Tasks. Leg zuerst einen unter „Tasks“ an.</p>
-        ) : (
-          <div className="mt-8 flex flex-col gap-1.5">
-            {open.map((t) => {
-              const q = quests.find((x) => x.id === t.quest_id)
-              const total = totalOf(t.id)
-              return (
-                <button
-                  key={t.id}
-                  onClick={() => onPick(t.id)}
-                  className="group flex items-center gap-3 rounded-xl border border-line bg-panel px-4 py-3 text-left transition hover:border-accent/50"
-                >
-                  <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: q?.color ?? 'var(--color-muted)' }} />
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate">{t.title}</span>
-                    {q && <span className="block truncate text-xs text-muted">{q.title}</span>}
-                  </span>
-                  {total > 0 && <span className="tabular text-xs text-muted">{formatDuration(total)}</span>}
-                  <Icon.chevron className="h-4 w-4 text-muted transition group-hover:text-accent" />
-                </button>
-              )
-            })}
-          </div>
-        )}
+      <main className="flex flex-1 flex-col items-center justify-center px-5 pb-16 text-center">
+        <div className="grid h-14 w-14 place-items-center rounded-full border border-good/40 text-good">
+          <Icon.check className="h-6 w-6" />
+        </div>
+        <h1 className="mt-6 text-2xl font-medium md:text-3xl">Für heute ist alles erledigt</h1>
+        <p className="mt-2 text-sm text-muted">Plane neue Tasks für heute, dann geht es hier weiter.</p>
+        <button
+          onClick={onPlan}
+          className="mt-8 rounded-lg bg-accent px-6 py-3 font-semibold text-accent-ink transition hover:brightness-110"
+        >
+          Zur Planung
+        </button>
       </main>
     </>
   )
