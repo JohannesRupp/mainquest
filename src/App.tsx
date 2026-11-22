@@ -198,7 +198,7 @@ function MenuItem({ icon, label, onClick }: { icon: keyof typeof Icon; label: st
 function ChatButton() {
   const pop = usePopover()
   return (
-    <div ref={pop.ref} className="fixed bottom-20 right-4 z-30 md:bottom-6 md:right-6">
+    <div ref={pop.ref} className="fixed bottom-6 right-6 z-30 hidden md:block">
       {pop.open && (
         <div className="absolute bottom-14 right-0 w-72 rounded-2xl border border-line bg-panel p-4 shadow-2xl shadow-black/60">
           <div className="mb-1 font-medium">Quest-Coach</div>

@@ -30,8 +30,11 @@ export function PlanView({ filter, setFilter }: { filter: string[]; setFilter: (
     const el = scroller.current
     const col = el?.querySelector<HTMLElement>('[data-today]')
     if (!el || !col) return
+    // Position der Spalte relativ zum sichtbaren Bereich, unabhängig von offsetParent und Padding
+    const pad = parseFloat(getComputedStyle(el).paddingLeft) || 0
+    const delta = col.getBoundingClientRect().left - el.getBoundingClientRect().left - pad
     const offset = el.clientWidth > 900 ? 2 * COL : 0
-    el.scrollTo({ left: col.offsetLeft - offset, behavior: smooth ? 'smooth' : 'auto' })
+    el.scrollTo({ left: el.scrollLeft + delta - offset, behavior: smooth ? 'smooth' : 'auto' })
   }
   useEffect(() => scrollToToday(), [])
 
@@ -50,8 +53,11 @@ export function PlanView({ filter, setFilter }: { filter: string[]; setFilter: (
 
   return (
     <div className="flex h-[calc(100dvh-9rem)] flex-col md:h-[calc(100dvh-6.5rem)]">
-      <div className="mb-6 flex flex-wrap items-center gap-3">
-        <h1 className="text-2xl font-medium tracking-tight md:text-3xl">Woche planen</h1>
+      <div className="mb-4 flex items-center gap-2 md:mb-6 md:gap-3">
+        <h1 className="text-2xl font-medium tracking-tight md:text-3xl">
+          <span className="md:hidden">Plan</span>
+          <span className="hidden md:inline">Woche planen</span>
+        </h1>
         <QuestFilter value={filter} onChange={setFilter} />
         <div className="flex-1" />
         <span className="hidden text-lg text-white/60 sm:inline">
@@ -72,7 +78,11 @@ export function PlanView({ filter, setFilter }: { filter: string[]; setFilter: (
         </IconButton>
       </div>
 
-      <div ref={scroller} onScroll={onScroll} className="relative -mx-4 flex flex-1 snap-x gap-4 overflow-x-auto px-4 pb-3 md:-mx-8 md:px-8">
+      <div
+        ref={scroller}
+        onScroll={onScroll}
+        className="relative -mx-4 flex min-h-0 flex-1 snap-x snap-mandatory scroll-px-4 gap-3 overflow-x-auto overscroll-x-contain px-4 pb-3 md:-mx-8 md:snap-proximity md:scroll-px-8 md:gap-4 md:px-8 [scrollbar-width:none]"
+      >
         {days.map((d) => {
           const key = dayKey(d)
           const isToday = key === todayKey
@@ -82,11 +92,15 @@ export function PlanView({ filter, setFilter }: { filter: string[]; setFilter: (
               key={key}
               data-col
               {...(isToday ? { 'data-today': true } : {})}
-              className="flex w-[85vw] max-w-[300px] shrink-0 snap-start flex-col rounded-2xl border border-white/[0.06] bg-white/[0.015] p-3"
+              className="flex w-[calc(100vw-2rem)] shrink-0 snap-start snap-always flex-col rounded-2xl border border-white/[0.06] bg-white/[0.015] p-3 md:w-[300px] md:snap-normal"
             >
               <div className={`mb-3 border-b-2 px-1 pb-2.5 text-base ${isToday ? 'border-accent text-white' : 'border-white/[0.06] text-white/50'}`}>
-                {d.toLocaleDateString('de-DE', { weekday: 'short' }).replace('.', '')}{' '}
-                <span className={isToday ? 'text-accent' : ''}>{d.getDate()}</span>
+                <span className="md:hidden">{d.toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' })}</span>
+                <span className="hidden md:inline">
+                  {d.toLocaleDateString('de-DE', { weekday: 'short' }).replace('.', '')}{' '}
+                  <span className={isToday ? 'text-accent' : ''}>{d.getDate()}</span>
+                </span>
+                {isToday && <span className="ml-2 text-sm text-accent md:hidden">Heute</span>}
               </div>
               <div className="-mx-1 flex flex-1 flex-col gap-3 overflow-y-auto px-1 pb-2">
                 {!past && (

@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useStore } from '../lib/useStore'
+import { useIsMobile } from '../lib/useMediaQuery'
 import { useNow } from '../lib/useNow'
 import { addDays, dayKey, fmtHM, overlapMs, startOfWeek } from '../lib/time'
 import type { TimeEntry } from '../lib/types'
@@ -14,7 +15,21 @@ export function CalendarView() {
   const [weekStart, setWeekStart] = useState(() => startOfWeek())
   const [editing, setEditing] = useState<TimeEntry | null>(null)
   const [logging, setLogging] = useState(false)
+  const mobile = useIsMobile()
+  const [selected, setSelected] = useState(() => dayKey())
   const days = useMemo(() => Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)), [weekStart])
+  // Mobil: ein Tag statt sieben schmaler Spalten
+  const selectedDay = days.find((d) => dayKey(d) === selected) ?? days[0]
+  const shownDays = mobile ? [selectedDay] : days
+  const shiftWeek = (n: number) => {
+    const next = addDays(weekStart, n * 7)
+    setWeekStart(next)
+    setSelected(dayKey(addDays(next, isoWeekdayIndex(selectedDay))))
+  }
+  const goToday = () => {
+    setWeekStart(startOfWeek())
+    setSelected(dayKey())
+  }
   const isThisWeek = dayKey(weekStart) === dayKey(startOfWeek())
   const questTaskIds = useMemo(() => new Set(tasks.filter((t) => t.quest_id).map((t) => t.id)), [tasks])
   const questMs = entries
@@ -25,43 +40,76 @@ export function CalendarView() {
 
   return (
     <div className="flex h-[calc(100dvh-9rem)] flex-col md:h-[calc(100dvh-6.5rem)]">
-      <div className="mb-6 flex flex-wrap items-center gap-3">
-        <h1 className="mr-3 text-3xl font-medium tracking-tight">Kalender</h1>
-        <button onClick={() => setWeekStart(addDays(weekStart, -7))} className="rounded-lg p-2 text-white/50 hover:bg-panel-2 hover:text-white" title="Vorige Woche">
+      <div className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-2 md:mb-6">
+        <h1 className="mr-auto text-2xl font-medium tracking-tight md:mr-3 md:text-3xl">Kalender</h1>
+        <button onClick={() => shiftWeek(-1)} className="rounded-lg p-2 text-white/50 hover:bg-panel-2 hover:text-white" title="Vorige Woche">
           <Icon.left className="h-4 w-4" />
         </button>
-        <span className="tabular min-w-32 text-center text-white/80">
+        <span className="tabular min-w-28 text-center text-sm text-white/80 md:min-w-32 md:text-base">
           {fmt(weekStart, { day: 'numeric', month: 'short' })} – {fmt(addDays(weekStart, 6), { day: 'numeric', month: 'short' })}
         </span>
-        <button onClick={() => setWeekStart(addDays(weekStart, 7))} className="rounded-lg p-2 text-white/50 hover:bg-panel-2 hover:text-white" title="Nächste Woche">
+        <button onClick={() => shiftWeek(1)} className="rounded-lg p-2 text-white/50 hover:bg-panel-2 hover:text-white" title="Nächste Woche">
           <Icon.chevron className="h-4 w-4" />
         </button>
-        <button
-          onClick={() => setWeekStart(startOfWeek())}
-          disabled={isThisWeek}
-          className="flex items-center gap-2 rounded-full border border-line px-4 py-2 text-sm text-white/80 transition hover:border-white/20 disabled:opacity-40"
-        >
-          <Icon.calendar className="h-4 w-4" /> Diese Woche
-        </button>
-        <Button variant="subtle" className="border border-line" onClick={() => setLogging(true)}>
-          Zeit eintragen
-        </Button>
-        <div className="flex-1" />
-        <div className="flex items-center gap-4">
+        <div className="flex w-full items-center gap-2 md:contents">
+          <button
+            onClick={goToday}
+            disabled={isThisWeek && selected === dayKey()}
+            className="flex items-center gap-2 rounded-full border border-line px-3.5 py-2 text-sm text-white/80 transition hover:border-white/20 disabled:opacity-40 md:px-4"
+          >
+            <Icon.calendar className="h-4 w-4" /> {mobile ? 'Heute' : 'Diese Woche'}
+          </button>
+          <Button variant="subtle" className="border border-line" onClick={() => setLogging(true)}>
+            <Icon.plus className="h-4 w-4 md:hidden" /> Zeit eintragen
+          </Button>
+          <div className="flex-1" />
+        </div>
+        <div className="hidden flex-1 md:block" />
+        <div className="flex w-full items-center gap-4 md:w-auto">
           <div className="tabular">
-            <span className="text-3xl font-medium">{fmtHM(questMs)}</span>
+            <span className="text-2xl font-medium md:text-3xl">{fmtHM(questMs)}</span>
             {goalMs > 0 && <span className="ml-1.5 text-white/45">/ {Math.round(goalMs / 3_600_000)}h Quest</span>}
           </div>
           {goalMs > 0 && (
-            <div className="hidden h-1.5 w-40 overflow-hidden rounded-full bg-white/[0.08] sm:block">
+            <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-white/[0.08] md:w-40 md:flex-none">
               <div className="h-full rounded-full bg-accent" style={{ width: `${Math.min(100, (questMs / goalMs) * 100)}%` }} />
             </div>
           )}
         </div>
       </div>
-      <Timeline key={weekStart.toISOString()} days={days} onEntryClick={setEditing} className="flex-1" />
+      {mobile && <DayStrip days={days} selected={dayKey(selectedDay)} onSelect={setSelected} now={now} />}
+      <Timeline key={weekStart.toISOString()} days={shownDays} onEntryClick={setEditing} className="min-h-0 flex-1" />
       {editing && <EntryEditor entry={editing} onClose={() => setEditing(null)} />}
       {logging && <LogWork onClose={() => setLogging(false)} />}
+    </div>
+  )
+}
+
+/** 0 = Montag … 6 = Sonntag */
+const isoWeekdayIndex = (d: Date) => (d.getDay() + 6) % 7
+
+/** Tagesauswahl für die mobile Ansicht */
+function DayStrip({ days, selected, onSelect, now }: { days: Date[]; selected: string; onSelect: (k: string) => void; now: number }) {
+  const { entries } = useStore()
+  const todayKey = dayKey()
+  return (
+    <div className="mb-3 grid grid-cols-7 gap-1">
+      {days.map((d) => {
+        const key = dayKey(d)
+        const active = key === selected
+        const total = entries.reduce((s, e) => s + overlapMs(e, d, addDays(d, 1), now), 0)
+        return (
+          <button
+            key={key}
+            onClick={() => onSelect(key)}
+            className={`flex flex-col items-center rounded-xl py-1.5 transition ${active ? 'bg-panel-2 text-white' : 'text-white/50'}`}
+          >
+            <span className="text-[11px] uppercase tracking-wide">{d.toLocaleDateString('de-DE', { weekday: 'short' }).replace('.', '')}</span>
+            <span className={`text-lg leading-tight ${key === todayKey ? 'text-accent' : ''}`}>{d.getDate()}</span>
+            <span className={`tabular text-[10px] ${total ? 'text-white/55' : 'text-white/20'}`}>{total ? fmtHM(total) : '·'}</span>
+          </button>
+        )
+      })}
     </div>
   )
 }
