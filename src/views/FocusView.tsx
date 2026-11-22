@@ -9,7 +9,8 @@ import { Icon } from '../components/ui'
 export function FocusView({ onBack, onPlan }: { onBack: () => void; onPlan: () => void }) {
   const { tasks, tasksOn, running } = useStore()
   const runningTask = tasks.find((t) => t.id === running?.task_id && !t.done)
-  const task = runningTask ?? tasksOn(dayKey()).find((t) => !t.done) ?? null
+  const open = tasksOn(dayKey()).filter((t) => !t.done)
+  const task = runningTask ?? open.find((t) => t.quest_id) ?? open[0] ?? null
 
   // Esc führt zurück
   useEffect(() => {

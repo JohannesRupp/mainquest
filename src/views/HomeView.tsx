@@ -20,7 +20,7 @@ export function HomeView() {
   const today = dayKey()
   const [filter, setFilter] = useLocalState<string[]>('mainquest.homeFilter', [])
   const [questId, setQuestId] = useLocalState<string | null>('mainquest.lastQuest', null)
-  const [showOther, setShowOther] = useLocalState('mainquest.showOther', true)
+  const [showOther, setShowOther] = useLocalState('mainquest.homeOtherOpen', false)
   const [editing, setEditing] = useState<TimeEntry | null>(null)
 
   const all = tasksOn(today)

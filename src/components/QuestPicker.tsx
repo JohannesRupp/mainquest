@@ -29,13 +29,9 @@ export function QuestPicker({
         <button
           type="button"
           onClick={() => pop.setOpen(!pop.open)}
-          className="inline-flex max-w-full items-center gap-2 rounded-full border border-white/[0.08] bg-white/[0.02] px-3 py-1 text-[13px] text-white/60 transition hover:border-white/20 hover:text-white"
+          className={`inline-flex max-w-full items-center gap-2 rounded-full border px-3 py-1 text-[13px] transition hover:border-white/25 hover:text-white ${quest ? 'border-white/[0.08] bg-white/[0.02] text-white/60' : 'border-dashed border-white/[0.14] text-white/35'}`}
         >
-          {quest ? (
-            <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: quest.color }} />
-          ) : (
-            <Icon.plus className="h-3 w-3 shrink-0" />
-          )}
+          <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: quest?.color ?? 'rgba(255,255,255,0.25)' }} />
           <span className="truncate">{quest ? quest.title : 'Quest hinzufügen'}</span>
         </button>
       ) : (

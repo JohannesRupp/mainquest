@@ -218,7 +218,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   // ---------- Tasks ----------
   const addTask: Store['addTask'] = async (title, questId, day, at) => {
-    const position = edgePosition(tasksOn(day), at)
+    const group = tasksOn(day).filter((t) => Boolean(t.quest_id) === Boolean(questId))
+    const position = edgePosition(group, at)
     const { data, error } = await supabase
       .from('tasks')
       .insert({ title, quest_id: questId, scheduled_on: day, position })

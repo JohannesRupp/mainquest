@@ -15,7 +15,7 @@ const COL = 316 // Spaltenbreite inkl. Abstand (Desktop)
 
 export function PlanView({ filter, setFilter }: { filter: string[]; setFilter: (ids: string[]) => void }) {
   const { tasksOn, addTask, moveTask, quests } = useStore()
-  const [showOther, setShowOther] = useLocalState('mainquest.planShowOther', false)
+  const [showOther, setShowOther] = useLocalState('mainquest.planOtherOpen', false)
   const [questId, setQuestId] = useLocalState<string | null>('mainquest.lastQuest', null)
   const [recurringOpen, setRecurringOpen] = useState(false)
   const scroller = useRef<HTMLDivElement>(null)
@@ -43,12 +43,9 @@ export function PlanView({ filter, setFilter }: { filter: string[]; setFilter: (
     if (days[idx].getMonth() !== month.getMonth()) setMonth(days[idx])
   }
 
-  const visible = (day: string) =>
-    openFirst(
-      tasksOn(day).filter((t) =>
-        t.quest_id ? filter.length === 0 || filter.includes(t.quest_id) : showOther && filter.length === 0,
-      ),
-    )
+  const questTasks = (day: string) =>
+    openFirst(tasksOn(day).filter((t) => t.quest_id && (filter.length === 0 || filter.includes(t.quest_id))))
+  const otherTasks = (day: string) => (filter.length ? [] : openFirst(tasksOn(day).filter((t) => !t.quest_id)))
 
   return (
     <div className="flex h-[calc(100dvh-9rem)] flex-col md:h-[calc(100dvh-6.5rem)]">
@@ -67,7 +64,7 @@ export function PlanView({ filter, setFilter }: { filter: string[]; setFilter: (
         </Button>
         <IconButton
           onClick={() => setShowOther(!showOther)}
-          title={showOther ? 'Tasks ohne Quest ausblenden' : 'Tasks ohne Quest einblenden'}
+          title={showOther ? 'Sonstiges überall einklappen' : 'Sonstiges überall aufklappen'}
           active={showOther}
         >
           {showOther ? <Icon.eye className="h-4 w-4" /> : <Icon.eyeOff className="h-4 w-4" />}
@@ -103,7 +100,21 @@ export function PlanView({ filter, setFilter }: { filter: string[]; setFilter: (
                     }}
                   />
                 )}
-                <TaskList tasks={visible(key)} onDrop={(id, before) => moveTask(id, key, before)} compact showTimer={false} />
+                <TaskList tasks={questTasks(key)} onDrop={(id, before) => moveTask(id, key, before)} compact showTimer={false} />
+                {otherTasks(key).length > 0 && (
+                  <>
+                    <button
+                      onClick={() => setShowOther(!showOther)}
+                      className="flex items-center gap-1.5 px-1 pt-1 text-sm text-white/40 transition hover:text-white"
+                    >
+                      <Icon.chevron className={`h-3.5 w-3.5 transition ${showOther ? 'rotate-90' : ''}`} />
+                      Sonstiges <span className="tabular text-white/30">{otherTasks(key).length}</span>
+                    </button>
+                    {showOther && (
+                      <TaskList tasks={otherTasks(key)} onDrop={(id, before) => moveTask(id, key, before)} compact showTimer={false} />
+                    )}
+                  </>
+                )}
               </div>
             </div>
           )
