@@ -74,6 +74,8 @@ export const Icon = {
   home: P('M3 11l9-7 9 7M5 10v10h14V10'),
   plan: P('M4 5h16v15H4zM9 5v15M14 5v15'),
   review: P('M5 20V10M12 20V4M19 20v-7'),
+  rocket: P('M5 15c-1.5 1.5-2 5-2 5s3.5-.5 5-2M9.5 14.5l-2-2M14.5 4.5C17 2 21 3 21 3s1 4-1.5 6.5L13 16l-5-5zM15.5 8.5h.01'),
+  trophy: P('M8 4h8v5a4 4 0 01-8 0zM8 6H5a3 3 0 003 4M16 6h3a3 3 0 01-3 4M12 13v4M8 20h8M10 17h4'),
   focus: P('M12 3v3M12 18v3M3 12h3M18 12h3M12 16a4 4 0 100-8 4 4 0 000 8z'),
   back: P('M19 12H5M11 6l-6 6 6 6'),
   pause: P('M8 5v14M16 5v14'),
@@ -113,7 +115,21 @@ export function IconButton({ active, className = '', ...props }: ButtonHTMLAttri
   )
 }
 
-export function Modal({ title, onClose, children, wide }: { title: string; onClose: () => void; children: ReactNode; wide?: boolean }) {
+export function Modal({
+  title,
+  subtitle,
+  icon,
+  onClose,
+  children,
+  wide,
+}: {
+  title: string
+  subtitle?: string
+  icon?: ReactNode
+  onClose: () => void
+  children: ReactNode
+  wide?: boolean
+}) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
     window.addEventListener('keydown', onKey)
@@ -122,8 +138,16 @@ export function Modal({ title, onClose, children, wide }: { title: string; onClo
   return (
     <div className="fixed inset-0 z-50 grid place-items-center bg-black/70 p-4 backdrop-blur-sm" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
       <div className={`max-h-[90dvh] w-full overflow-y-auto rounded-2xl border border-line bg-panel p-5 shadow-2xl ${wide ? 'max-w-2xl' : 'max-w-md'}`}>
-        <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-lg font-semibold">{title}</h2>
+        <div className="mb-5 flex items-start justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-3">
+            {icon && (
+              <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-accent/30 bg-accent/10 text-accent">{icon}</span>
+            )}
+            <div className="min-w-0">
+              <h2 className="text-lg font-semibold">{title}</h2>
+              {subtitle && <p className="truncate text-sm text-muted">{subtitle}</p>}
+            </div>
+          </div>
           <button onClick={onClose} className="rounded-lg p-1.5 text-muted hover:bg-panel-2 hover:text-white">
             <Icon.x className="h-4 w-4" />
           </button>

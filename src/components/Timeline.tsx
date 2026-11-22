@@ -1,10 +1,10 @@
 import { useEffect, useRef } from 'react'
 import { useStore } from '../lib/store'
 import { useNow } from '../lib/useNow'
-import { addDays, clockTime, dayKey } from '../lib/time'
+import { addDays, clockTime, dayKey, fmtHM, overlapMs } from '../lib/time'
 import type { TimeEntry } from '../lib/types'
 
-const HOUR = 60 // Pixel pro Stunde
+const HOUR = 54 // Pixel pro Stunde
 
 /** Stundenraster mit getrackten Zeitblöcken für einen oder mehrere Tage */
 export function Timeline({
@@ -17,6 +17,7 @@ export function Timeline({
   className?: string
 }) {
   const now = useNow(true, 30_000)
+  const { entries } = useStore()
   const scroller = useRef<HTMLDivElement>(null)
   const multi = days.length > 1
   const todayKey = dayKey(new Date(now))
@@ -31,10 +32,17 @@ export function Timeline({
         <div className="flex border-b border-line pl-14">
           {days.map((d) => {
             const isToday = dayKey(d) === todayKey
+            const total = entries.reduce((s, e) => s + overlapMs(e, d, addDays(d, 1), now), 0)
             return (
-              <div key={d.toISOString()} className={`min-w-0 flex-1 py-2.5 text-center text-sm ${isToday ? 'text-white' : 'text-muted'}`}>
-                {d.toLocaleDateString('de-DE', { weekday: 'short' })}{' '}
-                <span className={isToday ? 'font-semibold text-accent' : ''}>{d.getDate()}</span>
+              <div
+                key={d.toISOString()}
+                className={`min-w-0 flex-1 border-l border-white/[0.05] py-3 text-center ${isToday ? 'bg-accent/[0.04] text-white' : 'text-white/55'}`}
+              >
+                <div className="text-[15px]">
+                  {d.toLocaleDateString('de-DE', { weekday: 'short' }).replace('.', '')}{' '}
+                  <span className={isToday ? 'text-accent' : 'text-white/35'}>{d.getDate()}</span>
+                </div>
+                <div className={`tabular mt-0.5 text-xs ${total ? 'text-white/60' : 'text-white/25'}`}>{fmtHM(total)}</div>
               </div>
             )
           })}
@@ -54,7 +62,7 @@ export function Timeline({
               <div key={h} className="pointer-events-none absolute inset-x-0 border-t border-white/[0.05]" style={{ top: h * HOUR }} />
             ))}
             {days.map((d, i) => (
-              <DayColumn key={d.toISOString()} day={d} now={now} first={i === 0} onEntryClick={onEntryClick} />
+              <DayColumn key={d.toISOString()} day={d} now={now} first={i === 0} tint={multi} onEntryClick={onEntryClick} />
             ))}
           </div>
         </div>
@@ -67,11 +75,13 @@ function DayColumn({
   day,
   now,
   first,
+  tint,
   onEntryClick,
 }: {
   day: Date
   now: number
   first: boolean
+  tint?: boolean
   onEntryClick?: (e: TimeEntry) => void
 }) {
   const { entries, tasks, quests } = useStore()
@@ -88,7 +98,7 @@ function DayColumn({
     .filter((b) => b.end > b.s)
 
   return (
-    <div className={`relative min-w-0 flex-1 ${first ? '' : 'border-l border-white/[0.05]'}`}>
+    <div className={`relative min-w-0 flex-1 ${first ? '' : 'border-l border-white/[0.05]'} ${tint && isToday ? 'bg-accent/[0.04]' : ''}`}>
       {blocks.map(({ e, s, end }) => {
         const task = tasks.find((t) => t.id === e.task_id)
         const color = quests.find((q) => q.id === task?.quest_id)?.color ?? '#8a8a93'

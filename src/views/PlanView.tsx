@@ -4,8 +4,9 @@ import { useLocalState } from '../lib/useLocalState'
 import { addDays, dayKey, startOfDay } from '../lib/time'
 import type { RecurringTask } from '../lib/types'
 import { AddTaskInput } from '../components/AddTaskInput'
-import { QuestFilter, QuestPicker } from '../components/QuestPicker'
-import { Button, Icon, IconButton, Modal, inputCls } from '../components/ui'
+import { QuestFilter } from '../components/QuestPicker'
+import { RepeatForm, describeRule } from '../components/RepeatDialog'
+import { Button, Icon, IconButton, Modal } from '../components/ui'
 import { TaskList, openFirst } from './HomeView'
 
 const PAST_DAYS = 14
@@ -52,10 +53,10 @@ export function PlanView({ filter, setFilter }: { filter: string[]; setFilter: (
   return (
     <div className="flex h-[calc(100dvh-9rem)] flex-col md:h-[calc(100dvh-6.5rem)]">
       <div className="mb-6 flex flex-wrap items-center gap-3">
-        <h1 className="text-3xl font-medium tracking-tight">Woche planen</h1>
+        <h1 className="text-2xl font-medium tracking-tight md:text-3xl">Woche planen</h1>
         <QuestFilter value={filter} onChange={setFilter} />
         <div className="flex-1" />
-        <span className="hidden text-xl text-white/60 sm:inline">
+        <span className="hidden text-lg text-white/60 sm:inline">
           {month.toLocaleDateString('de-DE', { month: 'long', year: 'numeric' })}
         </span>
         <Button variant="subtle" className="border border-line" onClick={() => scrollToToday(true)}>
@@ -85,7 +86,7 @@ export function PlanView({ filter, setFilter }: { filter: string[]; setFilter: (
               {...(isToday ? { 'data-today': true } : {})}
               className="flex w-[85vw] max-w-[300px] shrink-0 snap-start flex-col rounded-2xl border border-white/[0.06] bg-white/[0.015] p-3"
             >
-              <div className={`mb-3 border-b-2 px-1 pb-2.5 text-lg ${isToday ? 'border-accent text-white' : 'border-white/[0.06] text-white/50'}`}>
+              <div className={`mb-3 border-b-2 px-1 pb-2.5 text-base ${isToday ? 'border-accent text-white' : 'border-white/[0.06] text-white/50'}`}>
                 {d.toLocaleDateString('de-DE', { weekday: 'short' }).replace('.', '')}{' '}
                 <span className={isToday ? 'text-accent' : ''}>{d.getDate()}</span>
               </div>
@@ -114,17 +115,16 @@ export function PlanView({ filter, setFilter }: { filter: string[]; setFilter: (
   )
 }
 
-const WEEKDAYS = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So']
-
 function RecurringDialog({ onClose }: { onClose: () => void }) {
   const { recurring, quests, addRecurring, updateRecurring, deleteRecurring } = useStore()
   const [editing, setEditing] = useState<RecurringTask | 'new' | null>(null)
 
   return (
-    <Modal title="Wiederkehrende Tasks" onClose={onClose} wide>
+    <Modal title="Wiederkehrende Tasks" icon={<Icon.repeat className="h-5 w-5" />} onClose={onClose} wide>
       {editing ? (
-        <RecurringForm
-          rule={editing === 'new' ? null : editing}
+        <RepeatForm
+          standalone
+          initial={editing === 'new' ? { unit: 'week' } : editing}
           onCancel={() => setEditing(null)}
           onSave={async (r) => {
             if (editing === 'new') await addRecurring(r)
@@ -135,7 +135,8 @@ function RecurringDialog({ onClose }: { onClose: () => void }) {
       ) : (
         <>
           <p className="mb-4 text-sm text-muted">
-            Diese Tasks werden automatisch an den gewählten Wochentagen in deinen Plan eingetragen (zwei Wochen im Voraus).
+            Diese Tasks werden automatisch in deinen Plan eingetragen (zwei Wochen im Voraus). Du kannst auch direkt an
+            einem Task auf das Wiederholen-Symbol klicken.
           </p>
           <div className="flex flex-col gap-2">
             {recurring.length === 0 && <p className="text-sm text-white/40">Noch keine wiederkehrenden Tasks.</p>}
@@ -146,8 +147,8 @@ function RecurringDialog({ onClose }: { onClose: () => void }) {
                   <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: q?.color ?? '#8a8a93' }} />
                   <div className="min-w-0 flex-1">
                     <div className="truncate">{r.title}</div>
-                    <div className="text-xs text-muted">
-                      {r.weekdays.length === 7 ? 'Täglich' : [...r.weekdays].sort().map((d) => WEEKDAYS[d - 1]).join(', ')}
+                    <div className="truncate text-xs text-muted">
+                      {describeRule(r)}
                       {q && ` · ${q.title}`}
                     </div>
                   </div>
@@ -171,56 +172,5 @@ function RecurringDialog({ onClose }: { onClose: () => void }) {
         </>
       )}
     </Modal>
-  )
-}
-
-function RecurringForm({
-  rule,
-  onSave,
-  onCancel,
-}: {
-  rule: RecurringTask | null
-  onSave: (r: Pick<RecurringTask, 'title' | 'quest_id' | 'weekdays'>) => void
-  onCancel: () => void
-}) {
-  const [title, setTitle] = useState(rule?.title ?? '')
-  const [questId, setQuestId] = useState<string | null>(rule?.quest_id ?? null)
-  const [weekdays, setWeekdays] = useState<number[]>(rule?.weekdays ?? [1, 2, 3, 4, 5])
-  const toggle = (d: number) => setWeekdays(weekdays.includes(d) ? weekdays.filter((x) => x !== d) : [...weekdays, d])
-
-  return (
-    <form
-      onSubmit={(e) => {
-        e.preventDefault()
-        if (title.trim() && weekdays.length) onSave({ title: title.trim(), quest_id: questId, weekdays: [...weekdays].sort() })
-      }}
-      className="flex flex-col gap-4"
-    >
-      <input autoFocus value={title} onChange={(e) => setTitle(e.target.value)} placeholder="z. B. Lineare Algebra Übungsblätter" className={inputCls} />
-      <div className="flex items-center gap-3 text-sm">
-        <span className="text-muted">Quest</span>
-        <QuestPicker value={questId} onChange={setQuestId} />
-      </div>
-      <div className="flex flex-wrap gap-1.5">
-        {WEEKDAYS.map((label, i) => (
-          <button
-            key={label}
-            type="button"
-            onClick={() => toggle(i + 1)}
-            className={`h-10 w-11 rounded-lg border text-sm transition ${weekdays.includes(i + 1) ? 'border-accent/60 bg-accent/15 text-accent' : 'border-line text-muted hover:text-white'}`}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
-      <div className="flex justify-end gap-2">
-        <Button type="button" variant="ghost" onClick={onCancel}>
-          Abbrechen
-        </Button>
-        <Button variant="primary" disabled={!title.trim() || !weekdays.length}>
-          Speichern
-        </Button>
-      </div>
-    </form>
   )
 }

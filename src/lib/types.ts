@@ -36,11 +36,18 @@ export interface RecurringTask {
   id: string
   quest_id: string | null
   title: string
-  /** 1 = Montag … 7 = Sonntag */
+  /** 1 = Montag … 7 = Sonntag (nur bei unit = 'week') */
   weekdays: number[]
+  /** alle N Tage/Wochen */
+  interval_count: number
+  unit: 'day' | 'week'
+  starts_on: string
+  ends_on: string | null
   generated_until: string | null
   created_at: string
 }
+
+export type RecurringInput = Pick<RecurringTask, 'title' | 'quest_id' | 'weekdays' | 'interval_count' | 'unit' | 'starts_on' | 'ends_on'>
 
 export interface Settings {
   calendar_id: string

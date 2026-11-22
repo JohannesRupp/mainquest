@@ -46,7 +46,7 @@ const NAV: { id: Tab; label: string; icon: keyof typeof Icon }[] = [
   { id: 'review', label: 'Review', icon: 'review' },
 ]
 
-const WIDE: Tab[] = ['home', 'plan', 'calendar']
+const WIDE: Tab[] = ['home', 'plan', 'calendar', 'quests', 'review']
 
 function Shell({ email }: { email: string }) {
   const [tab, setTabState] = useState<Tab>('home')
@@ -76,13 +76,13 @@ function Shell({ email }: { email: string }) {
       {/* Navigation oben (Desktop) */}
       <header className="sticky top-0 z-20 hidden border-b border-line bg-bg/85 backdrop-blur md:block">
         <div className="flex items-center gap-8 px-8 py-3">
-          <img src="/favicon.svg" alt="MainQuest" className="h-8 w-8" />
+          <img src="/favicon.svg" alt="MainQuest" className="h-7 w-7" />
           <nav className="flex gap-1">
             {NAV.map((n) => (
               <button
                 key={n.id}
                 onClick={() => setTab(n.id)}
-                className={`rounded-lg px-4 py-2 text-[15px] font-medium transition ${tab === n.id ? 'bg-panel-2 text-white' : 'text-white/45 hover:text-white'}`}
+                className={`rounded-lg px-3.5 py-1.5 text-sm font-medium transition ${tab === n.id ? 'bg-panel-2 text-white' : 'text-white/45 hover:text-white'}`}
               >
                 {n.label}
               </button>
@@ -168,7 +168,7 @@ function AccountMenu({ email, onNavigate }: { email: string; onNavigate: (t: Tab
       <button
         onClick={() => pop.setOpen(!pop.open)}
         title={email}
-        className="grid h-10 w-10 place-items-center rounded-full border border-line bg-panel text-[15px] font-semibold uppercase transition hover:border-white/25"
+        className="grid h-9 w-9 place-items-center rounded-full border border-line bg-panel text-sm font-semibold uppercase transition hover:border-white/25"
       >
         {email.charAt(0) || '?'}
       </button>

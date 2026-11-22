@@ -1,8 +1,8 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { supabase } from './supabase'
-import type { InsertAt, Quest, RecurringTask, Settings, Task, TimeEntry } from './types'
+import type { InsertAt, Quest, RecurringInput, RecurringTask, Settings, Task, TimeEntry } from './types'
 import { createEvent, deleteEvent, getToken, googleConfigured, isGoogleConnected, loadGis } from './google'
-import { addDays, dayKey, isoWeekday, parseDay } from './time'
+import { addDays, dayKey, isoWeekday, parseDay, startOfWeek } from './time'
 
 const MIN_SYNC_MS = 60_000 // Einträge unter 1 Minute werden nicht in den Kalender geschrieben
 const RECURRING_HORIZON_DAYS = 13 // so weit im Voraus werden wiederkehrende Tasks angelegt
@@ -18,7 +18,7 @@ interface Store {
   settings: Settings
   running: TimeEntry | null
   clearMessages: () => void
-  addQuest: (q: Pick<Quest, 'title' | 'description' | 'color'>) => Promise<void>
+  addQuest: (q: Pick<Quest, 'title' | 'description' | 'color'> & { weekly_goal_minutes?: number | null }) => Promise<void>
   updateQuest: (id: string, patch: Partial<Quest>) => Promise<void>
   deleteQuest: (id: string) => Promise<void>
   /** Tasks eines Tages in Reihenfolge */
@@ -35,9 +35,10 @@ interface Store {
   addManualEntry: (taskId: string, startedAt: Date, minutes: number) => Promise<void>
   updateEntry: (id: string, patch: { started_at: string; ended_at: string }) => Promise<void>
   deleteEntry: (id: string) => Promise<void>
-  addRecurring: (r: Pick<RecurringTask, 'title' | 'quest_id' | 'weekdays'>) => Promise<void>
-  updateRecurring: (id: string, patch: Pick<RecurringTask, 'title' | 'quest_id' | 'weekdays'>) => Promise<void>
-  deleteRecurring: (id: string) => Promise<void>
+  /** Neue Wiederholung; linkTaskId macht einen bestehenden Task zur ersten Instanz */
+  addRecurring: (r: RecurringInput, linkTaskId?: string) => Promise<void>
+  updateRecurring: (id: string, patch: RecurringInput, keepTaskId?: string) => Promise<void>
+  deleteRecurring: (id: string, keepTaskId?: string) => Promise<void>
   saveSettings: (s: Partial<Settings>) => Promise<void>
   syncPending: () => Promise<number>
   pendingSyncCount: number
@@ -60,9 +61,21 @@ function edgePosition(list: Task[], at: InsertAt): number {
 }
 
 /** Tage von from (exklusiv) bis to (inklusiv), die auf die Wochentage passen */
-function occurrences(weekdays: number[], from: Date, to: Date): string[] {
+function occurrences(r: RecurringTask, from: Date, to: Date): string[] {
+  const n = Math.max(1, r.interval_count ?? 1)
+  const unit = r.unit ?? 'week'
+  const start = r.starts_on ? parseDay(r.starts_on) : parseDay('2000-01-03')
+  const end = r.ends_on ? parseDay(r.ends_on) : null
+  const diff = (a: Date, b: Date) => Math.round((b.getTime() - a.getTime()) / 86400_000)
   const out: string[] = []
-  for (let d = addDays(from, 1); d <= to; d = addDays(d, 1)) if (weekdays.includes(isoWeekday(d))) out.push(dayKey(d))
+  for (let d = addDays(from, 1); d <= to; d = addDays(d, 1)) {
+    if (d < start || (end && d > end)) continue
+    const hit =
+      unit === 'day'
+        ? diff(start, d) % n === 0
+        : r.weekdays.includes(isoWeekday(d)) && Math.floor(diff(startOfWeek(start), d) / 7) % n === 0
+    if (hit) out.push(dayKey(d))
+  }
   return out
 }
 
@@ -92,7 +105,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     for (const r of rules) {
       const from = r.generated_until ? parseDay(r.generated_until) : addDays(today, -1)
       const start = from < addDays(today, -1) ? addDays(today, -1) : from
-      const days = occurrences(r.weekdays, start, horizon)
+      const days = occurrences(r, start, horizon)
       if (days.length) {
         const rows = days.map((day) => {
           const list = [...current, ...created].filter((t) => t.scheduled_on === day).sort(byPos)
@@ -316,54 +329,73 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }
 
   // ---------- Wiederkehrende Tasks ----------
-  const regenerate = async (rule: RecurringTask) => {
+  const regenerate = async (rule: RecurringTask, keepTaskId?: string, base: Task[] = tasks) => {
     // Künftige, offene Instanzen ab heute neu aufbauen
     const today = dayKey()
     // Instanzen mit getrackter Zeit bleiben erhalten, sonst gingen die Zeiteinträge verloren
-    const stale = tasks.filter(
-      (t) => t.recurring_id === rule.id && !t.done && t.scheduled_on >= today && !entries.some((e) => e.task_id === t.id),
+    const stale = base.filter(
+      (t) =>
+        t.recurring_id === rule.id &&
+        t.id !== keepTaskId &&
+        !t.done &&
+        t.scheduled_on >= today &&
+        !entries.some((e) => e.task_id === t.id),
     )
     if (stale.length) {
       const ids = stale.map((t) => t.id)
       const { error } = await supabase.from('tasks').delete().in('id', ids)
       if (error) throw error
     }
-    const remaining = tasks.filter((t) => !stale.includes(t))
+    const remaining = base.filter((t) => !stale.includes(t))
     const fresh = { ...rule, generated_until: dayKey(addDays(parseDay(today), -1)) }
     const created = await materialize([fresh], remaining)
     setTasks([...remaining, ...created])
     return fresh
   }
 
-  const addRecurring: Store['addRecurring'] = async (r) => {
+  const addRecurring: Store['addRecurring'] = async (r, linkTaskId) => {
     const { data, error } = await supabase.from('recurring_tasks').insert(r).select().single()
     if (error) return fail(error)
     try {
-      const rule = await regenerate(data as RecurringTask)
+      let base = tasks
+      if (linkTaskId) {
+        const { error: e2 } = await supabase.from('tasks').update({ recurring_id: data.id }).eq('id', linkTaskId)
+        if (e2) throw e2
+        base = tasks.map((t) => (t.id === linkTaskId ? { ...t, recurring_id: data.id as string } : t))
+      }
+      const rule = await regenerate(data as RecurringTask, linkTaskId, base)
       setRecurring((xs) => [...xs, rule])
     } catch (e) {
       fail(e)
     }
   }
-  const updateRecurring: Store['updateRecurring'] = async (id, patch) => {
+  const updateRecurring: Store['updateRecurring'] = async (id, patch, keepTaskId) => {
     const old = recurring.find((r) => r.id === id)
     if (!old) return
     const { error } = await supabase.from('recurring_tasks').update(patch).eq('id', id)
     if (error) return fail(error)
     try {
-      const rule = await regenerate({ ...old, ...patch })
+      const rule = await regenerate({ ...old, ...patch }, keepTaskId)
       setRecurring((xs) => xs.map((x) => (x.id === id ? rule : x)))
     } catch (e) {
       fail(e)
     }
   }
-  const deleteRecurring: Store['deleteRecurring'] = async (id) => {
+  const deleteRecurring: Store['deleteRecurring'] = async (id, keepTaskId) => {
     const today = dayKey()
     const future = tasks
-      .filter((t) => t.recurring_id === id && !t.done && t.scheduled_on >= today && !entries.some((e) => e.task_id === t.id))
+      .filter(
+        (t) =>
+          t.recurring_id === id &&
+          t.id !== keepTaskId &&
+          !t.done &&
+          t.scheduled_on >= today &&
+          !entries.some((e) => e.task_id === t.id),
+      )
       .map((t) => t.id)
     setRecurring((xs) => xs.filter((x) => x.id !== id))
-    setTasks((xs) => xs.filter((t) => !future.includes(t.id)))
+    // verbleibende Instanzen verlieren die Verknüpfung (on delete set null)
+    setTasks((xs) => xs.filter((t) => !future.includes(t.id)).map((t) => (t.recurring_id === id ? { ...t, recurring_id: null } : t)))
     if (future.length) await supabase.from('tasks').delete().in('id', future)
     const { error } = await supabase.from('recurring_tasks').delete().eq('id', id)
     if (error) fail(error)

@@ -32,7 +32,7 @@ export function HomeView() {
   return (
     <div>
       <div className="mb-8 flex flex-col gap-5 md:mb-10 md:flex-row md:items-end md:justify-between">
-        <h1 className="text-4xl font-medium tracking-tight md:text-5xl">{longDate(new Date())}</h1>
+        <h1 className="text-3xl font-medium tracking-tight md:text-4xl">{longDate(new Date())}</h1>
         <TimeStats />
       </div>
 
@@ -81,7 +81,7 @@ export function Section({ title, right, children }: { title: string; right?: Rea
   return (
     <section className="mb-10">
       <div className="mb-3 flex items-center justify-between gap-3">
-        <h2 className="text-sm font-medium uppercase tracking-[0.15em] text-white/45">{title}</h2>
+        <h2 className="text-xs font-medium uppercase tracking-[0.15em] text-white/45">{title}</h2>
         {right}
       </div>
       <div className="flex flex-col gap-3">{children}</div>
@@ -134,9 +134,9 @@ function TimeStats() {
   return (
     <div className="flex items-end gap-6">
       <div className="tabular flex items-baseline">
-        <span className="text-3xl font-medium">{h}</span>
+        <span className="text-2xl font-medium">{h}</span>
         <span className="ml-0.5 mr-2 text-muted">h</span>
-        <span className="text-3xl font-medium">{m}</span>
+        <span className="text-2xl font-medium">{m}</span>
         <span className="ml-0.5 text-muted">m heute</span>
       </div>
       <div className="w-44 pb-1">

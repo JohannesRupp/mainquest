@@ -74,3 +74,9 @@ export function hm(ms: number): { h: number; m: number } {
   const min = Math.floor(ms / 60000)
   return { h: Math.floor(min / 60), m: min % 60 }
 }
+
+/** Kompakt: "2h 3m", "45m" */
+export function fmtHM(ms: number): string {
+  const { h, m } = hm(ms)
+  return h ? `${h}h ${m}m` : `${m}m`
+}
