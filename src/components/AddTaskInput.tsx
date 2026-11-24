@@ -38,6 +38,7 @@ export function AddTaskInput({
         value={title}
         onChange={(e) => setTitle(e.target.value)}
         placeholder={placeholder}
+        enterKeyHint="send"
         className="min-w-0 flex-1 bg-transparent py-1.5 text-white outline-none placeholder:text-white/30"
       />
       {onQuestChange && (
@@ -45,7 +46,7 @@ export function AddTaskInput({
           <QuestPicker value={questId ?? null} onChange={onQuestChange} variant={compact ? 'dot' : 'chip'} align="right" />
         </div>
       )}
-      <div className="flex shrink-0 rounded-lg border border-white/[0.08] bg-black/30 p-0.5 text-[13px]">
+      <div className="hidden shrink-0 rounded-lg border border-white/[0.08] bg-black/30 p-0.5 text-[13px] md:flex">
         {(['top', 'bottom'] as const).map((v) => {
           const I = v === 'top' ? Icon.toTop : Icon.toBottom
           return (
@@ -62,6 +63,15 @@ export function AddTaskInput({
           )
         })}
       </div>
+      <button
+        type="submit"
+        disabled={!title.trim()}
+        title="Task hinzufügen"
+        aria-label="Task hinzufügen"
+        className={`grid shrink-0 place-items-center rounded-lg bg-accent text-accent-ink transition disabled:bg-white/[0.06] disabled:text-white/30 ${compact ? 'h-9 w-9' : 'h-10 w-10'} ${title.trim() ? '' : 'md:hidden'}`}
+      >
+        <Icon.plus className="h-4 w-4" />
+      </button>
     </form>
   )
 }

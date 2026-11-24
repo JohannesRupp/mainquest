@@ -104,7 +104,10 @@ export function usePopover() {
   return { open, setOpen, ref }
 }
 
-export const popoverCls = 'absolute z-40 mt-1.5 min-w-56 rounded-xl border border-line bg-panel p-1.5 shadow-2xl shadow-black/60'
+export const popoverCls =
+  'absolute z-40 mt-1.5 min-w-56 rounded-xl border border-line bg-panel p-1.5 shadow-2xl shadow-black/60 ' +
+  // Handy: als Sheet über der Tab-Leiste, volle Breite, damit nichts aus dem Bildschirm ragt
+  'max-md:fixed max-md:inset-x-3 max-md:left-3 max-md:right-3 max-md:top-auto max-md:bottom-[calc(4.5rem+env(safe-area-inset-bottom))] max-md:mt-0 max-md:max-h-[60dvh] max-md:overflow-y-auto max-md:rounded-2xl max-md:p-2 max-md:shadow-[0_-8px_40px_rgba(0,0,0,0.7)]'
 
 export function IconButton({ active, className = '', ...props }: ButtonHTMLAttributes<HTMLButtonElement> & { active?: boolean }) {
   return (
