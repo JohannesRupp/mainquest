@@ -1,5 +1,5 @@
 import { useStore } from '../lib/useStore'
-import { Icon, IconButton, popoverCls, usePopover } from './ui'
+import { Icon, IconButton, PopoverPanel, usePopover } from './ui'
 
 /** Quest auswählen: als Chip (Karte/Eingabe) oder als kleiner Farbpunkt (schmale Spalten) */
 export function QuestPicker({
@@ -49,12 +49,12 @@ export function QuestPicker({
       )}
 
       {pop.open && (
-        <div className={`${popoverCls} ${align === 'right' ? 'right-0' : 'left-0'}`}>
+        <PopoverPanel pop={pop} align={align}>
           <Option label="Ohne Quest" selected={!value} onClick={() => pick(null)} />
           {active.map((q) => (
             <Option key={q.id} label={q.title} color={q.color} selected={q.id === value} onClick={() => pick(q.id)} />
           ))}
-        </div>
+        </PopoverPanel>
       )}
     </div>
   )
@@ -65,13 +65,13 @@ function Option({ label, color, selected, onClick }: { label: string; color?: st
     <button
       type="button"
       onClick={onClick}
-      className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-left text-sm text-white/80 hover:bg-panel-2 hover:text-white"
+      className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-3 text-left text-[15px] text-white/80 hover:bg-panel-2 hover:text-white md:py-1.5 md:text-sm"
     >
       <span
         className={`h-2 w-2 shrink-0 rounded-full ${color ? '' : 'border border-dashed border-white/40'}`}
         style={color ? { background: color } : undefined}
       />
-      <span className="flex-1 truncate">{label}</span>
+      <span className="flex-1 leading-snug">{label}</span>
       {selected && <Icon.check className="h-3.5 w-3.5 text-accent" />}
     </button>
   )
@@ -90,7 +90,7 @@ export function QuestFilter({ value, onChange }: { value: string[]; onChange: (i
         <Icon.filter className="h-4 w-4" />
       </IconButton>
       {pop.open && (
-        <div className={`${popoverCls} right-0`}>
+        <PopoverPanel pop={pop} align="right">
           <div className="flex items-center justify-between px-2.5 py-1.5 text-xs uppercase tracking-wider text-muted">
             <span>Quests</span>
             {value.length > 0 && (
@@ -103,7 +103,7 @@ export function QuestFilter({ value, onChange }: { value: string[]; onChange: (i
           {active.map((q) => (
             <Option key={q.id} label={q.title} color={q.color} selected={value.includes(q.id)} onClick={() => toggle(q.id)} />
           ))}
-        </div>
+        </PopoverPanel>
       )}
     </div>
   )

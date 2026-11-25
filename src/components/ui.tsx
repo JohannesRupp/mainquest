@@ -1,4 +1,6 @@
-import { useEffect, useRef, useState, type ButtonHTMLAttributes, type ReactNode } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type ButtonHTMLAttributes, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
+import { useIsMobile } from '../lib/useMediaQuery'
 
 type Variant = 'primary' | 'ghost' | 'danger' | 'subtle'
 
@@ -26,8 +28,10 @@ export function Card({ children, className = '' }: { children: ReactNode; classN
   return <div className={`rounded-2xl border border-line bg-panel p-4 ${className}`}>{children}</div>
 }
 
-export const inputCls =
-  'w-full rounded-xl border border-line bg-panel-2 px-3 py-2 text-white placeholder:text-muted outline-none focus:border-accent'
+/** Eingabefeld ohne Breite (für Felder mit eigener Breite) */
+export const inputBase =
+  'min-w-0 rounded-xl border border-line bg-panel-2 px-3 py-2 text-white placeholder:text-muted outline-none focus:border-accent'
+export const inputCls = `w-full ${inputBase}`
 
 export function SectionTitle({ children, right }: { children: ReactNode; right?: ReactNode }) {
   return (
@@ -90,24 +94,89 @@ export const Icon = {
 export function usePopover() {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
+  const panelRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
     if (!open) return
-    const onDown = (e: MouseEvent) => ref.current && !ref.current.contains(e.target as Node) && setOpen(false)
+    const onDown = (e: PointerEvent) => {
+      const t = e.target as Element
+      if (ref.current?.contains(t) || panelRef.current?.contains(t)) return
+      // Der Hintergrund (Handy) schließt per Klick, damit der Tipp nicht auf darunterliegenden Elementen landet
+      if (t.closest?.('[data-popover-backdrop]')) return
+      setOpen(false)
+    }
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setOpen(false)
-    document.addEventListener('mousedown', onDown)
+    document.addEventListener('pointerdown', onDown)
     document.addEventListener('keydown', onKey)
     return () => {
-      document.removeEventListener('mousedown', onDown)
+      document.removeEventListener('pointerdown', onDown)
       document.removeEventListener('keydown', onKey)
     }
   }, [open])
-  return { open, setOpen, ref }
+  return { open, setOpen, ref, panelRef }
 }
 
-export const popoverCls =
-  'absolute z-40 mt-1.5 min-w-56 rounded-xl border border-line bg-panel p-1.5 shadow-2xl shadow-black/60 ' +
-  // Handy: als Sheet über der Tab-Leiste, volle Breite, damit nichts aus dem Bildschirm ragt
-  'max-md:fixed max-md:inset-x-3 max-md:left-3 max-md:right-3 max-md:top-auto max-md:bottom-[calc(4.5rem+env(safe-area-inset-bottom))] max-md:mt-0 max-md:max-h-[60dvh] max-md:overflow-y-auto max-md:rounded-2xl max-md:p-2 max-md:shadow-[0_-8px_40px_rgba(0,0,0,0.7)]'
+type Pop = ReturnType<typeof usePopover>
+
+/**
+ * Popover-Inhalt. Wird in document.body gerendert, damit scrollende Container (z.B. Plan-Spalten)
+ * ihn nicht abschneiden. Desktop: am Auslöser ausgerichtet und im Bildschirm gehalten.
+ * Handy: als Sheet über der Tab-Leiste mit abgedunkeltem Hintergrund.
+ */
+export function PopoverPanel({ pop, align = 'left', children }: { pop: Pop; align?: 'left' | 'right'; children: ReactNode }) {
+  const mobile = useIsMobile()
+  const [pos, setPos] = useState<{ top: number; left: number; maxHeight: number } | null>(null)
+
+  useLayoutEffect(() => {
+    if (mobile) return
+    const place = () => {
+      const a = pop.ref.current?.getBoundingClientRect()
+      const p = pop.panelRef.current
+      if (!a || !p) return
+      const m = 8
+      const w = p.offsetWidth
+      const h = p.scrollHeight
+      const left = Math.min(Math.max(m, align === 'right' ? a.right - w : a.left), window.innerWidth - w - m)
+      const below = window.innerHeight - a.bottom - m - 6
+      const above = a.top - m - 6
+      const down = h <= below || below >= above
+      const maxHeight = Math.max(120, down ? below : above)
+      const top = down ? a.bottom + 6 : Math.max(m, a.top - 6 - Math.min(h, maxHeight))
+      setPos({ top, left, maxHeight })
+    }
+    place()
+    window.addEventListener('resize', place)
+    window.addEventListener('scroll', place, true)
+    return () => {
+      window.removeEventListener('resize', place)
+      window.removeEventListener('scroll', place, true)
+    }
+  }, [mobile, align, pop.ref, pop.panelRef])
+
+  if (mobile)
+    return createPortal(
+      <>
+        <div data-popover-backdrop className="fixed inset-0 z-[60] bg-black/50" onClick={() => pop.setOpen(false)} />
+        <div
+          ref={pop.panelRef}
+          className="fixed inset-x-3 bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-[61] max-h-[60dvh] overflow-y-auto rounded-2xl border border-line bg-panel p-2 shadow-[0_-8px_40px_rgba(0,0,0,0.7)]"
+        >
+          {children}
+        </div>
+      </>,
+      document.body,
+    )
+
+  return createPortal(
+    <div
+      ref={pop.panelRef}
+      className="fixed z-[61] min-w-56 max-w-[min(22rem,calc(100vw-1rem))] overflow-y-auto rounded-xl border border-line bg-panel p-1.5 shadow-2xl shadow-black/60"
+      style={pos ? { top: pos.top, left: pos.left, maxHeight: pos.maxHeight } : { top: -9999, left: -9999 }}
+    >
+      {children}
+    </div>,
+    document.body,
+  )
+}
 
 export function IconButton({ active, className = '', ...props }: ButtonHTMLAttributes<HTMLButtonElement> & { active?: boolean }) {
   return (

@@ -54,9 +54,9 @@ export function DashboardView() {
 
   return (
     <div>
-      <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
+      <div className="mb-6 flex flex-wrap items-end justify-between gap-4 md:mb-8">
         <div>
-          <h1 className="text-3xl font-medium tracking-tight md:text-4xl">Wochenreview</h1>
+          <h1 className="text-2xl font-medium tracking-tight md:text-4xl">Wochenreview</h1>
           <p className="mt-2 text-white/50">Wie sehr hat die Woche deine Quests vorangebracht?</p>
         </div>
         <div className="flex items-center gap-2">
@@ -79,27 +79,27 @@ export function DashboardView() {
         </div>
       </div>
 
-      <div className="mb-6 grid gap-5 md:grid-cols-3">
-        <Tile label="Quest-Stunden">
+      <div className="mb-4 grid grid-cols-3 gap-2 md:mb-6 md:gap-5">
+        <Tile label="Quest-Stunden" short="Quest-Std.">
           <span className="text-accent">{fmtHM(s.questMs)}</span>
           {goalMs > 0 && <span className="ml-1.5 text-base font-normal text-white/45">/ {Math.round(goalMs / 3_600_000)}h</span>}
           {goalMs > 0 && <div className="mt-3 text-sm font-normal text-white/40">{Math.round((s.questMs / goalMs) * 100)} % vom Ziel</div>}
         </Tile>
-        <Tile label="Tagesdurchschnitt">{fmtHM(s.avg)}</Tile>
-        <Tile label="Quest-Arbeit vs. Sonstiges">
+        <Tile label="Tagesdurchschnitt" short="Ø pro Tag">{fmtHM(s.avg)}</Tile>
+        <Tile label="Quest-Arbeit vs. Sonstiges" short="Quest-Anteil">
           {questPct}
           <span className="ml-1 text-base font-normal text-white/45">%</span>
         </Tile>
       </div>
 
-      <div className="grid gap-5 lg:grid-cols-[minmax(0,1.45fr)_minmax(0,1fr)]">
+      <div className="grid grid-cols-1 gap-4 md:gap-5 lg:grid-cols-[minmax(0,1.45fr)_minmax(0,1fr)]">
         <Panel label="Quest-Stunden · pro Tag">
-          <div className="grid h-64 grid-cols-7 gap-3 md:gap-6">
+          <div className="grid h-56 grid-cols-7 gap-1.5 md:h-64 md:gap-6">
             {s.days.map((d, i) => {
               const isToday = dayKey(d.date) === todayKey
               return (
-                <div key={i} className="flex flex-col items-center">
-                  <span className={`tabular mb-2 text-[13px] ${isToday ? 'text-accent' : d.quest ? 'text-white/80' : 'text-white/30'}`}>{fmtHM(d.quest)}</span>
+                <div key={i} className="flex min-w-0 flex-col items-center">
+                  <span className={`tabular mb-2 whitespace-nowrap text-[10px] md:text-[13px] ${isToday ? 'text-accent' : d.quest ? 'text-white/80' : 'text-white/30'}`}>{fmtHM(d.quest)}</span>
                   <div className="flex w-full flex-1 items-end justify-center">
                     <div
                       className={`w-full max-w-12 rounded-t-md ${isToday ? 'bg-accent' : 'bg-white/[0.18]'}`}
@@ -175,18 +175,21 @@ export function DashboardView() {
   )
 }
 
-function Tile({ label, children }: { label: string; children: ReactNode }) {
+function Tile({ label, short, children }: { label: string; short?: string; children: ReactNode }) {
   return (
-    <div className="rounded-2xl border border-line bg-panel px-7 py-6">
-      <div className="text-xs font-medium uppercase tracking-[0.15em] text-white/50">{label}</div>
-      <div className="tabular mt-4 text-4xl font-medium tracking-tight">{children}</div>
+    <div className="min-w-0 rounded-2xl border border-line bg-panel px-3 py-4 md:px-7 md:py-6">
+      <div className="truncate text-[10px] font-medium uppercase tracking-[0.1em] text-white/50 md:text-xs md:tracking-[0.15em]">
+        <span className="md:hidden">{short ?? label}</span>
+        <span className="hidden md:inline">{label}</span>
+      </div>
+      <div className="tabular mt-2 text-xl font-medium tracking-tight md:mt-4 md:text-4xl [&_div]:text-xs md:[&_div]:text-sm">{children}</div>
     </div>
   )
 }
 
 function Panel({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <div className="rounded-2xl border border-line bg-panel px-7 py-6">
+    <div className="min-w-0 rounded-2xl border border-line bg-panel px-4 py-5 md:px-7 md:py-6">
       <div className="mb-6 text-xs font-medium uppercase tracking-[0.15em] text-white/50">{label}</div>
       {children}
     </div>

@@ -10,7 +10,7 @@ import {
   listCalendars,
   type CalendarInfo,
 } from '../lib/google'
-import { Button, Card, Icon, SectionTitle, inputCls } from '../components/ui'
+import { Button, Card, Icon, SectionTitle, inputBase, inputCls } from '../components/ui'
 
 export function SettingsView({ email, onOpenEntries }: { email: string; onOpenEntries: () => void }) {
   const { settings, saveSettings, syncPending, pendingSyncCount } = useStore()
@@ -57,7 +57,7 @@ export function SettingsView({ email, onOpenEntries }: { email: string; onOpenEn
 
       <SectionTitle>Ziele</SectionTitle>
       <Card className="flex items-center justify-between gap-4">
-        <div>
+        <div className="min-w-0">
           <div className="text-sm">Wochenziel für Quest-Arbeit</div>
           <div className="text-xs text-muted">Wird auf Home und im Review als Fortschritt angezeigt.</div>
         </div>
@@ -73,7 +73,7 @@ export function SettingsView({ email, onOpenEntries }: { email: string; onOpenEn
               const minutes = h > 0 ? Math.round(h * 60) : null
               if (minutes !== settings.weekly_goal_minutes) saveSettings({ weekly_goal_minutes: minutes })
             }}
-            className={`${inputCls} w-20 text-right`}
+            className={`${inputBase} w-20 text-right`}
           />
           Std.
         </label>

@@ -1,4 +1,4 @@
-import { useRef, useState, type DragEvent } from 'react'
+import { useEffect, useRef, useState, type DragEvent } from 'react'
 
 export const DRAG_TYPE = 'application/x-mainquest-task'
 
@@ -7,6 +7,17 @@ export function useDropList(onDrop: (taskId: string, beforeId: string | null) =>
   const ref = useRef<HTMLDivElement>(null)
   // undefined = nichts darüber, null = ans Ende, sonst ID der Karte, vor der eingefügt wird
   const [before, setBefore] = useState<string | null | undefined>(undefined)
+
+  // Abgebrochenes Ziehen (Esc, außerhalb losgelassen): Einfügelinie nicht stehen lassen
+  useEffect(() => {
+    const reset = () => setBefore(undefined)
+    window.addEventListener('dragend', reset)
+    window.addEventListener('drop', reset)
+    return () => {
+      window.removeEventListener('dragend', reset)
+      window.removeEventListener('drop', reset)
+    }
+  }, [])
 
   const handlers = {
     onDragOver(e: DragEvent) {
@@ -29,6 +40,7 @@ export function useDropList(onDrop: (taskId: string, beforeId: string | null) =>
     onDrop(e: DragEvent) {
       const id = e.dataTransfer.getData(DRAG_TYPE)
       e.preventDefault()
+      e.stopPropagation() // Spalte darunter soll den Drop nicht noch einmal verarbeiten
       const b = before ?? null
       setBefore(undefined)
       if (id) onDrop(id, b)

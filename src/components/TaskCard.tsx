@@ -6,7 +6,7 @@ import type { Task } from '../lib/types'
 import { DRAG_TYPE } from './dnd'
 import { QuestPicker } from './QuestPicker'
 import { RepeatDialog } from './RepeatDialog'
-import { Button, Icon, inputCls } from './ui'
+import { Button, Icon, inputBase, inputCls } from './ui'
 
 /** Task-Karte: Titel oben, darunter Abhaken, Quest-Chip, Zeit und Play */
 export function TaskCard({ task, showTimer = true, compact }: { task: Task; showTimer?: boolean; compact?: boolean }) {
@@ -58,7 +58,7 @@ export function TaskCard({ task, showTimer = true, compact }: { task: Task; show
         <button
           onClick={() => setRepeatOpen(true)}
           title={task.recurring_id ? 'Wiederholung bearbeiten' : 'Wiederholen'}
-          className={`grid h-7 w-7 shrink-0 place-items-center rounded-lg transition hover:bg-panel-2 hover:text-white ${task.recurring_id ? 'text-white/40' : 'text-white/25 opacity-0 group-hover:opacity-100 focus:opacity-100'}`}
+          className={`grid h-7 w-7 shrink-0 place-items-center rounded-lg transition hover:bg-panel-2 hover:text-white ${task.recurring_id ? 'text-white/40' : 'text-white/25 opacity-0 group-hover:opacity-100 focus:opacity-100 [@media(hover:none)]:opacity-100'}`}
         >
           <Icon.repeat className="h-3.5 w-3.5" />
         </button>
@@ -83,6 +83,8 @@ export function TaskCard({ task, showTimer = true, compact }: { task: Task; show
         <div className="mt-3 flex flex-col gap-3 border-t border-line pt-3">
           <input
             defaultValue={task.title}
+            enterKeyHint="done"
+            onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
             onBlur={(e) => e.target.value.trim() && e.target.value !== task.title && updateTask(task.id, { title: e.target.value.trim() })}
             className={inputCls}
           />
@@ -100,11 +102,11 @@ export function TaskCard({ task, showTimer = true, compact }: { task: Task; show
                 type="date"
                 value={task.scheduled_on}
                 onChange={(e) => e.target.value && moveTask(task.id, e.target.value, null)}
-                className={`${inputCls} w-auto py-1.5`}
+                className={`${inputBase} w-auto py-1.5`}
               />
             </label>
             <div className="flex items-center gap-2">
-              <input type="number" min={1} value={minutes} onChange={(e) => setMinutes(e.target.value)} className={`${inputCls} w-20 py-1.5`} />
+              <input type="number" min={1} value={minutes} onChange={(e) => setMinutes(e.target.value)} className={`${inputBase} w-20 py-1.5`} />
               <Button
                 onClick={() => {
                   const m = Number(minutes)

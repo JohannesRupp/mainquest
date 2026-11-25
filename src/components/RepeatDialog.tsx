@@ -3,7 +3,7 @@ import { useStore } from '../lib/useStore'
 import { dayKey } from '../lib/time'
 import type { RecurringInput, RecurringTask, Task } from '../lib/types'
 import { QuestPicker } from './QuestPicker'
-import { Button, Icon, Modal, inputCls } from './ui'
+import { Button, Icon, Modal, inputBase, inputCls } from './ui'
 
 export const WEEKDAYS = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So']
 
@@ -85,7 +85,7 @@ export function RepeatForm({
 
       <div className="flex items-center gap-3 rounded-xl border border-line bg-panel-2/40 p-3">
         <span className="text-sm text-muted">Alle</span>
-        <input type="number" min={1} value={count} onChange={(e) => setCount(e.target.value)} className={`${inputCls} w-20`} />
+        <input type="number" min={1} value={count} onChange={(e) => setCount(e.target.value)} className={`${inputBase} w-20`} />
         <div className="relative flex-1">
           <select value={unit} onChange={(e) => setUnit(e.target.value as 'day' | 'week')} className={selectCls}>
             <option value="day">{n === 1 ? 'Tag' : 'Tage'}</option>

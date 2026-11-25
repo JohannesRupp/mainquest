@@ -9,6 +9,7 @@ import { RepeatForm, describeRule } from '../components/RepeatDialog'
 import { Button, Icon, IconButton, Modal } from '../components/ui'
 import { TaskList } from './HomeView'
 import { openFirst } from '../lib/tasks'
+import { DRAG_TYPE } from '../components/dnd'
 
 const PAST_DAYS = 14
 const FUTURE_DAYS = 41
@@ -19,6 +20,7 @@ export function PlanView({ filter, setFilter }: { filter: string[]; setFilter: (
   const [showOther, setShowOther] = useLocalState('mainquest.planOtherOpen', false)
   const [questId, setQuestId] = useLocalState<string | null>('mainquest.lastQuest', null)
   const [recurringOpen, setRecurringOpen] = useState(false)
+  const [dragDay, setDragDay] = useState<string | null>(null)
   const scroller = useRef<HTMLDivElement>(null)
   const today = startOfDay()
   const todayKey = dayKey(today)
@@ -37,6 +39,11 @@ export function PlanView({ filter, setFilter }: { filter: string[]; setFilter: (
     el.scrollTo({ left: el.scrollLeft + delta - offset, behavior: smooth ? 'smooth' : 'auto' })
   }
   useEffect(() => scrollToToday(), [])
+  useEffect(() => {
+    const reset = () => setDragDay(null)
+    window.addEventListener('dragend', reset)
+    return () => window.removeEventListener('dragend', reset)
+  }, [])
 
   function onScroll() {
     const el = scroller.current
@@ -81,18 +88,33 @@ export function PlanView({ filter, setFilter }: { filter: string[]; setFilter: (
       <div
         ref={scroller}
         onScroll={onScroll}
-        className="relative -mx-4 flex min-h-0 flex-1 snap-x snap-mandatory scroll-px-4 gap-3 overflow-x-auto overscroll-x-contain px-4 pb-3 md:-mx-8 md:snap-proximity md:scroll-px-8 md:gap-4 md:px-8 [scrollbar-width:none]"
+        className="relative -mx-4 flex min-h-0 flex-1 snap-x snap-mandatory scroll-px-4 gap-3 overflow-x-auto overscroll-x-contain px-4 pb-3 md:-mx-8 md:snap-none md:scroll-px-8 md:gap-4 md:px-8 [scrollbar-width:none]"
       >
         {days.map((d) => {
           const key = dayKey(d)
           const isToday = key === todayKey
           const past = key < todayKey
+          const all = tasksOn(key)
+          const allDone = all.length > 0 && all.every((t) => t.done)
           return (
             <div
               key={key}
               data-col
               {...(isToday ? { 'data-today': true } : {})}
-              className="flex w-[calc(100vw-2rem)] shrink-0 snap-start snap-always flex-col rounded-2xl border border-white/[0.06] bg-white/[0.015] p-3 md:w-[300px] md:snap-normal"
+              // Ganze Spalte ist Ablagefläche (auch leere Tage); Listen darin bestimmen die genaue Position
+              onDragOver={(e) => {
+                if (past || !e.dataTransfer.types.includes(DRAG_TYPE)) return
+                e.preventDefault()
+                if (dragDay !== key) setDragDay(key)
+              }}
+              onDragLeave={(e) => !e.currentTarget.contains(e.relatedTarget as Node) && setDragDay(null)}
+              onDrop={(e) => {
+                const id = e.dataTransfer.getData(DRAG_TYPE)
+                e.preventDefault()
+                setDragDay(null)
+                if (id && !past) moveTask(id, key, null)
+              }}
+              className={`flex w-[calc(100vw-2rem)] shrink-0 snap-start snap-always flex-col rounded-2xl border p-3 transition-colors md:w-[300px] md:snap-normal ${dragDay === key ? 'border-accent/40 bg-accent/[0.03]' : 'border-white/[0.06] bg-white/[0.015]'}`}
             >
               <div className={`mb-3 border-b-2 px-1 pb-2.5 text-base ${isToday ? 'border-accent text-white' : 'border-white/[0.06] text-white/50'}`}>
                 <span className="md:hidden">{d.toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' })}</span>
@@ -101,6 +123,11 @@ export function PlanView({ filter, setFilter }: { filter: string[]; setFilter: (
                   <span className={isToday ? 'text-accent' : ''}>{d.getDate()}</span>
                 </span>
                 {isToday && <span className="ml-2 text-sm text-accent md:hidden">Heute</span>}
+                {allDone && (
+                  <span className="float-right flex items-center gap-1 text-xs text-good/80">
+                    <Icon.check className="h-3.5 w-3.5" /> Alles erledigt
+                  </span>
+                )}
               </div>
               <div className="-mx-1 flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-1 pb-2 [&>*]:shrink-0">
                 {!past && (
@@ -115,7 +142,7 @@ export function PlanView({ filter, setFilter }: { filter: string[]; setFilter: (
                     }}
                   />
                 )}
-                <TaskList tasks={questTasks(key)} onDrop={(id, before) => moveTask(id, key, before)} compact showTimer={false} />
+                <TaskList tasks={questTasks(key)} onDrop={past ? undefined : (id, before) => moveTask(id, key, before)} compact showTimer={false} />
                 {otherTasks(key).length > 0 && (
                   <>
                     <button
@@ -126,7 +153,7 @@ export function PlanView({ filter, setFilter }: { filter: string[]; setFilter: (
                       Sonstiges <span className="tabular text-white/30">{otherTasks(key).length}</span>
                     </button>
                     {showOther && (
-                      <TaskList tasks={otherTasks(key)} onDrop={(id, before) => moveTask(id, key, before)} compact showTimer={false} />
+                      <TaskList tasks={otherTasks(key)} onDrop={past ? undefined : (id, before) => moveTask(id, key, before)} compact showTimer={false} />
                     )}
                   </>
                 )}

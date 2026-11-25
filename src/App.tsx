@@ -14,7 +14,7 @@ import { SettingsView } from './views/SettingsView'
 import { TimeEntriesView } from './views/TimeEntriesView'
 import { FocusView } from './views/FocusView'
 import { TimerBar } from './components/TimerBar'
-import { Icon, popoverCls, usePopover } from './components/ui'
+import { Icon, PopoverPanel, usePopover } from './components/ui'
 
 export type Tab = 'home' | 'plan' | 'calendar' | 'focus' | 'quests' | 'review' | 'settings' | 'entries'
 
@@ -136,8 +136,6 @@ function Shell({ email }: { email: string }) {
         )}
       </main>
 
-      <ChatButton />
-
       {/* Tab-Leiste Mobil */}
       <nav className="fixed inset-x-0 bottom-0 z-20 grid grid-cols-6 border-t border-line bg-bg/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden">
         {NAV.map((n) => {
@@ -174,12 +172,12 @@ function AccountMenu({ email, onNavigate }: { email: string; onNavigate: (t: Tab
         {email.charAt(0) || '?'}
       </button>
       {pop.open && (
-        <div className={`${popoverCls} right-0`}>
+        <PopoverPanel pop={pop} align="right">
           <div className="truncate px-2.5 py-2 text-xs text-muted">{email}</div>
           <MenuItem icon="gear" label="Einstellungen" onClick={() => go('settings')} />
           <MenuItem icon="clock" label="Zeiteinträge" onClick={() => go('entries')} />
           <MenuItem icon="logout" label="Abmelden" onClick={() => supabase.auth.signOut()} />
-        </div>
+        </PopoverPanel>
       )}
     </div>
   )
@@ -188,31 +186,9 @@ function AccountMenu({ email, onNavigate }: { email: string; onNavigate: (t: Tab
 function MenuItem({ icon, label, onClick }: { icon: keyof typeof Icon; label: string; onClick: () => void }) {
   const I = Icon[icon]
   return (
-    <button onClick={onClick} className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-sm text-white/80 hover:bg-panel-2 hover:text-white">
+    <button onClick={onClick} className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-3 text-left text-[15px] md:py-2 md:text-sm text-white/80 hover:bg-panel-2 hover:text-white">
       <I className="h-4 w-4 text-muted" /> {label}
     </button>
-  )
-}
-
-/** Chat-Button unten rechts (Funktion folgt) */
-function ChatButton() {
-  const pop = usePopover()
-  return (
-    <div ref={pop.ref} className="fixed bottom-6 right-6 z-30 hidden md:block">
-      {pop.open && (
-        <div className="absolute bottom-14 right-0 w-72 rounded-2xl border border-line bg-panel p-4 shadow-2xl shadow-black/60">
-          <div className="mb-1 font-medium">Quest-Coach</div>
-          <p className="text-sm text-muted">Hier kommt bald ein Chat, der dir beim Planen und Fokussieren hilft.</p>
-        </div>
-      )}
-      <button
-        onClick={() => pop.setOpen(!pop.open)}
-        title="Chat"
-        className="grid h-12 w-12 place-items-center rounded-full border border-line bg-panel text-white/70 shadow-lg shadow-black/40 transition hover:border-white/25 hover:text-white"
-      >
-        <Icon.chat className="h-5 w-5" />
-      </button>
-    </div>
   )
 }
 

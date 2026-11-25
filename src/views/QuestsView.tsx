@@ -2,7 +2,7 @@ import { useMemo, useState, type ReactNode } from 'react'
 import { useStore } from '../lib/useStore'
 import { addDays, entryMs, fmtHM, overlapMs, startOfDay, startOfWeek } from '../lib/time'
 import type { Quest } from '../lib/types'
-import { Button, Icon, Modal, QUEST_COLORS, inputCls } from '../components/ui'
+import { Button, Icon, Modal, QUEST_COLORS, inputBase, inputCls } from '../components/ui'
 
 type Tab = 'active' | 'finished'
 
@@ -27,7 +27,7 @@ export function QuestsView({ openQuest }: { openQuest: (id: string) => void }) {
     <div>
       <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-medium tracking-tight md:text-4xl">Quests</h1>
+          <h1 className="text-2xl font-medium tracking-tight md:text-4xl">Quests</h1>
           <p className="mt-2 text-white/50">Gib deiner Zeit ein Ziel. Mach Platz für das, was kommt.</p>
         </div>
         <Button variant="primary" className="px-5 py-2.5" onClick={() => setEditing('new')}>
@@ -35,7 +35,7 @@ export function QuestsView({ openQuest }: { openQuest: (id: string) => void }) {
         </Button>
       </div>
 
-      <div className="mb-8 grid overflow-hidden rounded-2xl border border-line bg-panel sm:grid-cols-3">
+      <div className="mb-6 grid grid-cols-3 overflow-hidden rounded-2xl border border-line bg-panel md:mb-8">
         <Stat label="Quest-Stunden · gesamt" value={fmtHM(allTime)} />
         <Stat label="In Arbeit" value={String(active.length).padStart(2, '0')} />
         <Stat
@@ -103,9 +103,9 @@ export function QuestsView({ openQuest }: { openQuest: (id: string) => void }) {
 
 function Stat({ label, value }: { label: ReactNode; value: string }) {
   return (
-    <div className="border-line px-7 py-6 sm:border-l sm:first:border-l-0 [&:not(:first-child)]:border-t sm:[&:not(:first-child)]:border-t-0">
-      <div className="text-[15px] text-white/50">{label}</div>
-      <div className="tabular mt-2 text-3xl font-medium">{value}</div>
+    <div className="min-w-0 border-l border-line px-3 py-4 first:border-l-0 md:px-7 md:py-6">
+      <div className="truncate text-xs text-white/50 md:text-[15px]">{label}</div>
+      <div className="tabular mt-1.5 text-xl font-medium md:mt-2 md:text-3xl">{value}</div>
     </div>
   )
 }
@@ -240,7 +240,7 @@ function QuestEditor({
         <label className="flex items-center justify-between gap-3 text-sm">
           <span className="text-muted">Wochenziel</span>
           <span className="flex items-center gap-2 text-muted">
-            <input type="number" min={0} step={0.5} value={goal} onChange={(e) => setGoal(e.target.value)} placeholder="–" className={`${inputCls} w-24 text-right`} />
+            <input type="number" min={0} step={0.5} value={goal} onChange={(e) => setGoal(e.target.value)} placeholder="–" className={`${inputBase} w-24 text-right`} />
             Std. / Woche
           </span>
         </label>

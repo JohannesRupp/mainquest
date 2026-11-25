@@ -96,14 +96,15 @@ export function TaskList({
   showTimer = true,
 }: {
   tasks: Task[]
-  onDrop: (id: string, before: string | null) => void
+  /** Ohne onDrop ist die Liste keine Ablagefläche (z.B. vergangene Tage) */
+  onDrop?: (id: string, before: string | null) => void
   empty?: string
   compact?: boolean
   showTimer?: boolean
 }) {
-  const { ref, before, handlers } = useDropList(onDrop)
+  const { ref, before, handlers } = useDropList(onDrop ?? (() => {}))
   return (
-    <div ref={ref} {...handlers} className="flex min-h-12 shrink-0 flex-col gap-3">
+    <div ref={ref} {...(onDrop ? handlers : {})} className="flex min-h-12 shrink-0 flex-col gap-3">
       {tasks.map((t) => (
         <div key={t.id} className="flex flex-col gap-3">
           {before === t.id && <DropLine />}

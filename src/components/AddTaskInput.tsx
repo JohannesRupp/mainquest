@@ -3,6 +3,7 @@ import type { InsertAt } from '../lib/types'
 import { useLocalState } from '../lib/useLocalState'
 import { QuestPicker } from './QuestPicker'
 import { Icon } from './ui'
+import { useIsMobile } from '../lib/useMediaQuery'
 
 /** Gestrichelte Eingabe "Task hinzufügen…" mit Umschalter Oben/Unten */
 export function AddTaskInput({
@@ -19,6 +20,8 @@ export function AddTaskInput({
   onQuestChange?: (id: string | null) => void
 }) {
   const [title, setTitle] = useState('')
+  const mobile = useIsMobile()
+  const dot = compact || mobile
   const [at, setAt] = useLocalState<InsertAt>('mainquest.insertAt', 'bottom')
 
   function submit(e: FormEvent) {
@@ -42,8 +45,8 @@ export function AddTaskInput({
         className="min-w-0 flex-1 bg-transparent py-1.5 text-white outline-none placeholder:text-white/30"
       />
       {onQuestChange && (
-        <div className={compact ? '' : 'max-w-[12rem]'}>
-          <QuestPicker value={questId ?? null} onChange={onQuestChange} variant={compact ? 'dot' : 'chip'} align="right" />
+        <div className={dot ? '' : 'max-w-[12rem]'}>
+          <QuestPicker value={questId ?? null} onChange={onQuestChange} variant={dot ? 'dot' : 'chip'} align="right" />
         </div>
       )}
       <div className="hidden shrink-0 rounded-lg border border-white/[0.08] bg-black/30 p-0.5 text-[13px] md:flex">
