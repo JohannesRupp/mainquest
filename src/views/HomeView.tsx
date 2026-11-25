@@ -103,7 +103,7 @@ export function TaskList({
 }) {
   const { ref, before, handlers } = useDropList(onDrop)
   return (
-    <div ref={ref} {...handlers} className="flex min-h-12 flex-col gap-3">
+    <div ref={ref} {...handlers} className="flex min-h-12 shrink-0 flex-col gap-3">
       {tasks.map((t) => (
         <div key={t.id} className="flex flex-col gap-3">
           {before === t.id && <DropLine />}

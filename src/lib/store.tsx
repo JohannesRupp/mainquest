@@ -2,7 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { supabase } from './supabase'
 import type { InsertAt, Quest, RecurringTask, Settings, Task, TimeEntry } from './types'
 import { StoreContext, type Store } from './useStore'
-import { createEvent, deleteEvent, getToken, googleConfigured, isGoogleConnected, loadGis } from './google'
+import { cachedToken, createEvent, deleteEvent, getToken, googleConfigured, isGoogleConnected, loadGis } from './google'
+import { useGoogleTasksSync } from './useGoogleTasksSync'
 import { addDays, dayKey, isoWeekday, parseDay, startOfWeek } from './time'
 
 const MIN_SYNC_MS = 60_000 // Einträge unter 1 Minute werden nicht in den Kalender geschrieben
@@ -37,6 +38,8 @@ function occurrences(r: RecurringTask, from: Date, to: Date): string[] {
 
 export function StoreProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true)
+  // Spalte google_task_id vorhanden? (Migration 004)
+  const [gtasksColumn, setGtasksColumn] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [quests, setQuests] = useState<Quest[]>([])
@@ -51,7 +54,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setNotice(null)
   }, [])
 
-  const fail = (e: unknown) => setError(e instanceof Error ? e.message : String((e as { message?: string })?.message ?? e))
+  const fail = useCallback(
+    (e: unknown) => setError(e instanceof Error ? e.message : String((e as { message?: string })?.message ?? e)),
+    [],
+  )
 
   /** Wiederkehrende Tasks bis zum Horizont anlegen */
   const materialize = async (rules: RecurringTask[], current: Task[]): Promise<Task[]> => {
@@ -116,6 +122,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       )
     }
     let taskList = t.data as Task[]
+    const hasColumn = taskList.length === 0 || 'google_task_id' in taskList[0]
+    setGtasksColumn(hasColumn)
+    if (!hasColumn && googleConfigured && isGoogleConnected())
+      fail('Google Tasks: Bitte supabase/migrations/004_google_tasks.sql im Supabase SQL Editor ausführen.')
     const rules = r.data as RecurringTask[]
     setQuests(q.data as Quest[])
     setEntries(e.data as TimeEntry[])
@@ -172,6 +182,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const tasksOn = useCallback((day: string) => tasks.filter((t) => t.scheduled_on === day).sort(byPos), [tasks])
 
+  useGoogleTasksSync({ tasks, setTasks, loading, columnReady: gtasksColumn, fail })
+
   /** Token nur holen, wenn Google verbunden ist (muss im Klick passieren) */
   const tokenIfConnected = () => {
     if (!googleConfigured || !isGoogleConnected()) return null
@@ -209,6 +221,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   // ---------- Tasks ----------
   const addTask: Store['addTask'] = async (title, questId, day, at) => {
+    if (!questId && gtasksColumn && !cachedToken()) tokenIfConnected()
     const group = tasksOn(day).filter((t) => Boolean(t.quest_id) === Boolean(questId))
     const position = edgePosition(group, at)
     const { data, error } = await supabase

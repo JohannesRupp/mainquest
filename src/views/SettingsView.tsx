@@ -97,8 +97,8 @@ export function SettingsView({ email, onOpenEntries }: { email: string; onOpenEn
         ) : !connected ? (
           <>
             <p className="text-sm text-muted">
-              Verbinde deinen Google Kalender: Sobald du einen Task abhakst, wird jeder getrackte Zeitblock als Termin
-              eingetragen.
+              Verbinde dein Google-Konto: Sobald du einen Task abhakst, wird jeder getrackte Zeitblock als Termin
+              eingetragen. Tasks ohne Quest landen außerdem automatisch in Google Tasks („Meine Aufgaben“).
             </p>
             <Button variant="primary" onClick={connect}>
               <Icon.calendar className="h-4 w-4" /> Mit Google verbinden
@@ -120,6 +120,11 @@ export function SettingsView({ email, onOpenEntries }: { email: string; onOpenEn
               >
                 Trennen
               </Button>
+            </div>
+
+            <div className="flex items-center justify-between gap-3 text-sm">
+              <span className="text-muted">Tasks ohne Quest werden automatisch in Google Tasks („Meine Aufgaben“) gespiegelt.</span>
+              <Button onClick={() => getToken().catch((e: Error) => setErr(e.message))}>Jetzt abgleichen</Button>
             </div>
 
             <label className="flex flex-col gap-1.5 text-sm">

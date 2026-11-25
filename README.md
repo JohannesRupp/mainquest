@@ -10,6 +10,7 @@ Läuft unter **https://mainquest.johannesrupp.com** und lässt sich auf dem iPho
 - **Tasks** pro Quest, Notizen, manuelles Nachtragen von Zeit
 - **Timer** mit Start/Stopp, immer nur einer läuft gleichzeitig, sichtbar als Leiste oben
 - **Google-Kalender-Sync**: beim Abhaken wird jeder Zeitblock (ab 1 Minute) als Termin `✓ Taskname` eingetragen; Zielkalender wählbar
+- **Google-Tasks-Sync**: Tasks ohne Quest werden in „Meine Aufgaben“ gespiegelt (Titel, Datum, erledigt, löschen)
 - **Dashboard**: heute, diese Woche, Fokuszeit pro Tag (gestapelt nach Quest), Zeit nach Quest, Streak
 - **Sync über alle Geräte** via Supabase (Login per Magic Link)
 
@@ -22,7 +23,8 @@ src/
   App.tsx              Auth-Gate, Navigation
   lib/store.tsx        StoreProvider: State, Supabase-Aktionen, Kalender-Sync
   lib/useStore.ts      Store-Interface + useStore()-Hook
-  lib/google.ts        OAuth-Token & Google Calendar API
+  lib/google.ts        OAuth-Token, Google Calendar & Google Tasks API
+  lib/useGoogleTasksSync.ts  Abgleich Tasks ohne Quest -> Google Tasks
   lib/time.ts          Zeitberechnungen
   views/               Home, Plan, Kalender, Fokus, Quests, Dashboard, Einstellungen, Login
 supabase/schema.sql    Basisschema inkl. Row Level Security
@@ -43,7 +45,7 @@ supabase/migrations/   Spätere Schemaänderungen, der Reihe nach ausführen
 ### 2. Google Kalender
 
 1. [Google Cloud Console](https://console.cloud.google.com) → neues Projekt „MainQuest“.
-2. **APIs & Services → Library** → *Google Calendar API* aktivieren.
+2. **APIs & Services → Library** → *Google Calendar API* und *Google Tasks API* aktivieren.
 3. **OAuth consent screen**: Typ *External*, App-Name MainQuest, deine Mail als Testnutzer eintragen.
    Scopes: `calendar.events` und `calendar.calendarlist.readonly`.
 4. **Credentials → Create Credentials → OAuth client ID** → Typ *Web application*.

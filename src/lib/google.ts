@@ -1,11 +1,15 @@
-// Google Calendar Anbindung über Google Identity Services (reiner Browser-Flow, kein Backend nötig)
+// Google Calendar + Google Tasks über Google Identity Services (reiner Browser-Flow, kein Backend nötig)
 
 const CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined
 const SCOPES = [
   'https://www.googleapis.com/auth/calendar.events',
   'https://www.googleapis.com/auth/calendar.calendarlist.readonly',
+  'https://www.googleapis.com/auth/tasks',
 ].join(' ')
-const STORAGE_KEY = 'mainquest.gtoken'
+// v2: neuer Schlüssel, weil alte Tokens noch keine Tasks-Berechtigung haben
+const STORAGE_KEY = 'mainquest.gtoken.v2'
+/** Event, sobald ein neues Token da ist (Store startet dann ausstehende Syncs) */
+export const TOKEN_EVENT = 'mainquest:gtoken'
 const CONNECTED_KEY = 'mainquest.gconnected'
 
 export const googleConfigured = Boolean(CLIENT_ID)
@@ -69,6 +73,7 @@ function getClient(): TokenClient {
         localStorage.setItem(STORAGE_KEY, JSON.stringify({ token: r.access_token, expires }))
         localStorage.setItem(CONNECTED_KEY, '1')
         pending?.resolve(r.access_token)
+        window.dispatchEvent(new Event(TOKEN_EVENT))
       }
       pending = null
     },
@@ -120,7 +125,11 @@ export function disconnectGoogle() {
 }
 
 async function gfetch<T>(token: string, path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`https://www.googleapis.com/calendar/v3${path}`, {
+  return apiFetch<T>(token, `https://www.googleapis.com/calendar/v3${path}`, 'Google Kalender', init)
+}
+
+async function apiFetch<T>(token: string, url: string, label: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(url, {
     ...init,
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', ...init?.headers },
   })
@@ -128,8 +137,25 @@ async function gfetch<T>(token: string, path: string, init?: RequestInit): Promi
     localStorage.removeItem(STORAGE_KEY)
     throw new Error('Google-Sitzung abgelaufen, bitte erneut verbinden')
   }
-  if (!res.ok) throw new Error(`Google Kalender Fehler ${res.status}: ${await res.text()}`)
+  if (!res.ok) {
+    const body = await res.text()
+    if (res.status === 403 && /accessNotConfigured|SERVICE_DISABLED/.test(body))
+      throw new GoogleError(`${label}: API ist im Google-Cloud-Projekt noch nicht aktiviert.`, res.status)
+    if (res.status === 403 && /insufficient/i.test(body)) {
+      localStorage.removeItem(STORAGE_KEY)
+      throw new GoogleError(`${label}: Berechtigung fehlt. Bitte Google in den Einstellungen neu verbinden.`, res.status)
+    }
+    throw new GoogleError(`${label} Fehler ${res.status}: ${body}`, res.status)
+  }
   return (res.status === 204 ? undefined : await res.json()) as T
+}
+
+export class GoogleError extends Error {
+  status: number
+  constructor(message: string, status: number) {
+    super(message)
+    this.status = status
+  }
 }
 
 export interface CalendarInfo {
@@ -165,4 +191,42 @@ export async function createEvent(
 
 export async function deleteEvent(token: string, calendarId: string, eventId: string) {
   await gfetch(token, `/calendars/${encodeURIComponent(calendarId)}/events/${eventId}`, { method: 'DELETE' })
+}
+
+// ---------- Google Tasks (Liste „Meine Aufgaben“) ----------
+
+const TASKS = 'https://tasks.googleapis.com/tasks/v1/lists/@default/tasks'
+
+export interface GTaskInput {
+  title: string
+  /** YYYY-MM-DD */
+  day: string
+  done: boolean
+}
+
+const gtaskBody = (t: GTaskInput) => ({
+  title: t.title,
+  // Google Tasks speichert nur das Datum, die Uhrzeit wird ignoriert
+  due: `${t.day}T00:00:00.000Z`,
+  status: t.done ? 'completed' : 'needsAction',
+  ...(t.done ? {} : { completed: null }),
+})
+
+export async function createGTask(token: string, t: GTaskInput): Promise<string> {
+  const r = await apiFetch<{ id: string }>(token, TASKS, 'Google Tasks', {
+    method: 'POST',
+    body: JSON.stringify({ ...gtaskBody(t), notes: 'Aus MainQuest' }),
+  })
+  return r.id
+}
+
+export async function updateGTask(token: string, id: string, t: GTaskInput) {
+  await apiFetch(token, `${TASKS}/${encodeURIComponent(id)}`, 'Google Tasks', {
+    method: 'PATCH',
+    body: JSON.stringify(gtaskBody(t)),
+  })
+}
+
+export async function deleteGTask(token: string, id: string) {
+  await apiFetch(token, `${TASKS}/${encodeURIComponent(id)}`, 'Google Tasks', { method: 'DELETE' })
 }

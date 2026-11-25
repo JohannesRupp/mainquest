@@ -102,7 +102,7 @@ export function PlanView({ filter, setFilter }: { filter: string[]; setFilter: (
                 </span>
                 {isToday && <span className="ml-2 text-sm text-accent md:hidden">Heute</span>}
               </div>
-              <div className="-mx-1 flex flex-1 flex-col gap-3 overflow-y-auto px-1 pb-2">
+              <div className="-mx-1 flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-1 pb-2 [&>*]:shrink-0">
                 {!past && (
                   <AddTaskInput
                     compact

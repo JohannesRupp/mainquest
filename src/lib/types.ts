@@ -21,6 +21,8 @@ export interface Task {
   scheduled_on: string
   position: number
   recurring_id: string | null
+  /** ID in Google Tasks (nur Tasks ohne Quest werden gespiegelt) */
+  google_task_id?: string | null
   created_at: string
 }
 
